@@ -50,6 +50,7 @@
 
     /* ── Upload ── */
     .upload-zone {
+      position: relative;
       border: 2px dashed var(--border);
       border-radius: 12px;
       padding: 48px 24px;
@@ -57,12 +58,17 @@
       background: var(--card);
       cursor: pointer;
       transition: border-color .2s, background .2s;
+      display: block;
     }
     .upload-zone:hover, .upload-zone.drag-over {
       border-color: var(--accent);
       background: #fdf7ff;
     }
-    .upload-zone input[type="file"] { display: none; }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      width: 1px; height: 1px;
+      opacity: 0; overflow: hidden;
+    }
     .upload-icon { font-size: 40px; margin-bottom: 12px; }
     .upload-zone p { color: var(--muted); font-size: 15px; }
     .upload-zone strong { color: var(--text); }
@@ -388,14 +394,13 @@
 
   <!-- Upload -->
   <section id="upload-section">
-    <div class="upload-zone" id="drop-zone">
-      <input type="file" id="csv-input" accept=".csv">
+    <label class="upload-zone" id="drop-zone" for="csv-input">
+      <input type="file" id="csv-input" accept=".csv,text/csv,text/plain,text/comma-separated-values">
       <div class="upload-icon">📄</div>
-      <p><strong>Drop your Toggl CSV export here</strong></p>
-      <p>or</p>
-      <button class="btn-upload" onclick="document.getElementById('csv-input').click()">Browse file</button>
+      <p><strong>Tap or drop your Toggl CSV export here</strong></p>
+      <span class="btn-upload">Browse file</span>
       <div class="file-name" id="file-name-display"></div>
-    </div>
+    </label>
     <div class="error-msg" id="error-msg" style="display:none"></div>
   </section>
 
@@ -522,15 +527,15 @@
   const dropZone = document.getElementById('drop-zone');
   const csvInput = document.getElementById('csv-input');
 
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
+    e.stopPropagation();
     dropZone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
     if (file) loadFile(file);
   });
-  dropZone.addEventListener('click', () => csvInput.click());
   csvInput.addEventListener('change', () => { if (csvInput.files[0]) loadFile(csvInput.files[0]); });
 
   function loadFile(file) {
