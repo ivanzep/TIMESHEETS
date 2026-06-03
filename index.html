@@ -309,7 +309,8 @@
       border-left: 3px solid var(--project-border);
     }
     .project-name { font-weight: 700; font-size: 14px; color: var(--text); }
-    .project-total { font-size: 13px; font-weight: 700; color: var(--accent-dark); }
+    .project-total { font-size: 13px; font-weight: 700; color: var(--accent-dark); display: flex; align-items: center; gap: 8px; }
+    .btn-copy-proj { background: var(--project-bg); }
 
     /* ── Tag section ── */
     .tag-section { padding: 12px 18px 14px 21px; border-top: 1px solid #f0f0f4; }
@@ -770,11 +771,15 @@
       for (const proj of Object.keys(grouped[date]).sort()) {
         const projEntries = Object.values(grouped[date][proj]).flat();
         const projTotal   = roundQ(projEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+        const projCopyId  = storeText(fmtH(projTotal));
 
         html += `<div class="project-block">
           <div class="project-header">
             <span class="project-name">${escHtml(proj)}</span>
-            <span class="project-total">${fmtH(projTotal)}</span>
+            <span class="project-total">
+              ${escHtml(fmtH(projTotal))}
+              <button class="btn-copy btn-copy-proj" onclick="copyStored(this,${projCopyId})">Copy</button>
+            </span>
           </div>`;
 
         for (const tagKey of Object.keys(grouped[date][proj]).sort()) {
