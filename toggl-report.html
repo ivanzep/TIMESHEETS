@@ -66,8 +66,12 @@
     }
     .upload-zone input[type="file"] {
       position: absolute;
-      width: 1px; height: 1px;
-      opacity: 0; overflow: hidden;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
     }
     .upload-icon { font-size: 40px; margin-bottom: 12px; }
     .upload-zone p { color: var(--muted); font-size: 15px; }
@@ -394,7 +398,7 @@
 
   <!-- Upload -->
   <section id="upload-section">
-    <label class="upload-zone" id="drop-zone" for="csv-input">
+    <label class="upload-zone" id="drop-zone">
       <input type="file" id="csv-input" accept=".csv,text/csv,text/plain,text/comma-separated-values">
       <div class="upload-icon">📄</div>
       <p><strong>Tap or drop your Toggl CSV export here</strong></p>
@@ -536,10 +540,13 @@
     const file = e.dataTransfer.files[0];
     if (file) loadFile(file);
   });
-  csvInput.addEventListener('change', () => { if (csvInput.files[0]) loadFile(csvInput.files[0]); });
+  function onFileSelected() { if (csvInput.files && csvInput.files[0]) loadFile(csvInput.files[0]); }
+  csvInput.addEventListener('change', onFileSelected);
+  csvInput.addEventListener('input', onFileSelected);
 
   function loadFile(file) {
-    if (!file.name.endsWith('.csv')) { showError('Please upload a .csv file exported from Toggl Track.'); return; }
+    const ok = file.name.endsWith('.csv') || file.type.includes('csv') || file.type.includes('text');
+    if (!ok) { showError('Please upload a .csv file exported from Toggl Track.'); return; }
     hideError();
     const reader = new FileReader();
     reader.onload = e => processRawCSV(e.target.result, file.name);
