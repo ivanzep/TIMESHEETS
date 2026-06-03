@@ -116,7 +116,17 @@
       gap: 20px;
       align-items: start;
     }
-    @media (max-width: 680px) { .filters-grid { grid-template-columns: 1fr; } }
+    .filters-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-top: 18px;
+    }
+    @media (max-width: 680px) {
+      .filters-grid { grid-template-columns: 1fr; }
+      .filters-grid-2 { grid-template-columns: 1fr; }
+    }
 
     .filter-group label {
       display: block;
@@ -138,15 +148,15 @@
     }
     .filter-group input[type="date"]:focus { outline: 2px solid var(--accent); border-color: transparent; }
 
-    .project-list {
-      max-height: 160px;
+    .check-list {
+      max-height: 140px;
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 7px;
       padding: 8px 10px;
       background: #fff;
     }
-    .project-list label {
+    .check-list label {
       display: flex;
       align-items: center;
       gap: 7px;
@@ -158,8 +168,8 @@
       padding: 3px 0;
       cursor: pointer;
     }
-    .project-list label:hover { color: var(--accent-dark); }
-    .project-list input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+    .check-list label:hover { color: var(--accent-dark); }
+    .check-list input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
     .toggle-all {
       font-size: 11px;
       color: var(--accent-dark);
@@ -218,6 +228,23 @@
       transition: border-color .15s, color .15s;
     }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Copy button ── */
+    .btn-copy {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .btn-copy.copied { border-color: #48c78e; color: #257953; background: #f0fff8; }
 
     /* ── Report ── */
     #report-output {
@@ -313,7 +340,12 @@
       color: var(--text);
       margin-left: auto;
     }
-    .tag-hours span { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
+    .notes-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .notes-content { flex: 1; min-width: 0; }
     .notes-paragraph {
       font-size: 13px;
       color: #444;
@@ -348,9 +380,15 @@
       border-bottom: 1px solid var(--border);
     }
     .summary-table { width: 100%; border-collapse: collapse; }
-    .summary-table td { padding: 9px 18px; font-size: 13px; border-bottom: 1px solid #f5f5f7; }
+    .summary-table td { padding: 9px 18px; font-size: 13px; border-bottom: 1px solid #f5f5f7; vertical-align: middle; }
     .summary-table tr:last-child td { border-bottom: none; }
-    .summary-table .col-hours { text-align: right; font-weight: 700; color: var(--accent-dark); }
+    .summary-table .col-hours {
+      text-align: right;
+      font-weight: 700;
+      color: var(--accent-dark);
+      white-space: nowrap;
+    }
+    .col-hours-inner { display: inline-flex; align-items: center; gap: 8px; }
     .summary-footer td {
       font-weight: 700;
       font-size: 14px;
@@ -379,7 +417,7 @@
     /* ── Print ── */
     @media print {
       body { background: #fff; }
-      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print { display: none !important; }
+      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print, .btn-copy { display: none !important; }
       #report-output { display: block !important; }
       .day-block { break-inside: avoid; margin-bottom: 18px; }
       .project-block { break-inside: avoid; }
@@ -433,10 +471,20 @@
 
     </div>
 
-    <div class="filter-group" style="margin-top:18px">
-      <label>Projects</label>
-      <button class="toggle-all" id="toggle-all-btn" onclick="toggleAllProjects()">Deselect all</button>
-      <div class="project-list" id="project-list"></div>
+    <div class="filters-grid-2">
+
+      <div class="filter-group">
+        <label>Projects</label>
+        <button class="toggle-all" id="toggle-projects-btn" onclick="toggleAllProjects()">Deselect all</button>
+        <div class="check-list" id="project-list"></div>
+      </div>
+
+      <div class="filter-group">
+        <label>Tags</label>
+        <button class="toggle-all" id="toggle-tags-btn" onclick="toggleAllTags()">Deselect all</button>
+        <div class="check-list" id="tag-list"></div>
+      </div>
+
     </div>
 
     <div class="filters-actions">
@@ -462,6 +510,12 @@
 <script>
   let allEntries = [];
   let allProjects = [];
+  let allTags = [];
+
+  // copy store — reset each generateReport() call
+  let _copyStore = {};
+  let _copyId = 0;
+  function storeText(text) { const id = _copyId++; _copyStore[id] = text; return id; }
 
   // ── CSV Parsing ──────────────────────────────────────────────────────────
 
@@ -511,19 +565,23 @@
   function roundQ(h) { return Math.round(h * 4) / 4; }
 
   function fmtH(h) {
-    const s = h.toFixed(2);
-    return parseFloat(s) % 1 === 0 ? h.toFixed(0) + 'h' : parseFloat(s) + 'h';
+    const v = parseFloat(h.toFixed(2));
+    return v % 1 === 0 ? v.toFixed(0) + 'h' : v + 'h';
   }
 
   function fmtDate(iso) {
     const [y, m, d] = iso.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    return dt.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 
   function normTags(raw) {
     if (!raw) return '';
     return raw.split(',').map(t => t.trim()).filter(Boolean).sort().join(', ');
+  }
+
+  function splitTags(raw) {
+    if (!raw) return [];
+    return raw.split(',').map(t => t.trim()).filter(Boolean);
   }
 
   // ── File Handling ────────────────────────────────────────────────────────
@@ -556,7 +614,6 @@
   function processRawCSV(text, fileName) {
     const entries = parseCSV(text);
 
-    // Detect Toggl CSV columns
     if (!entries.length || !entries[0].hasOwnProperty('Start date')) {
       showError('Unrecognised CSV format. Please export a Detailed Report from Toggl Track (Reports → Detailed → Export CSV).');
       return;
@@ -567,10 +624,15 @@
 
     document.getElementById('file-name-display').textContent = `✓ ${fileName} — ${allEntries.length} entries loaded`;
 
-    // Populate projects
-    const projectSet = new Set(allEntries.map(e => e['Project'] || '(No Project)').sort());
-    allProjects = [...projectSet];
+    // Projects
+    allProjects = [...new Set(allEntries.map(e => e['Project'] || '(No Project)'))].sort();
     buildProjectCheckboxes();
+
+    // Tags — collect individual tags across all entries
+    const tagSet = new Set();
+    for (const e of allEntries) splitTags(e['Tags']).forEach(t => tagSet.add(t));
+    allTags = [...tagSet].sort();
+    buildTagCheckboxes();
 
     // Date range
     const dates = allEntries.map(e => e['Start date']).sort();
@@ -586,19 +648,32 @@
   // ── Filters UI ───────────────────────────────────────────────────────────
 
   function buildProjectCheckboxes() {
-    const list = document.getElementById('project-list');
-    list.innerHTML = allProjects.map(p => `
-      <label>
-        <input type="checkbox" value="${escHtml(p)}" checked onchange="void 0">
-        ${escHtml(p)}
-      </label>`).join('');
+    document.getElementById('project-list').innerHTML = allProjects.map(p => `
+      <label><input type="checkbox" value="${escAttr(p)}" checked> ${escHtml(p)}</label>`).join('');
+  }
+
+  function buildTagCheckboxes() {
+    const list = document.getElementById('tag-list');
+    if (!allTags.length) {
+      list.innerHTML = '<span style="font-size:12px;color:#bbb;padding:4px 2px;display:block">No tags in data</span>';
+      return;
+    }
+    list.innerHTML = allTags.map(t => `
+      <label><input type="checkbox" value="${escAttr(t)}" checked> ${escHtml(t)}</label>`).join('');
   }
 
   function toggleAllProjects() {
-    const boxes = document.querySelectorAll('#project-list input[type="checkbox"]');
-    const allChecked = [...boxes].every(b => b.checked);
+    const boxes = [...document.querySelectorAll('#project-list input[type="checkbox"]')];
+    const allChecked = boxes.every(b => b.checked);
     boxes.forEach(b => b.checked = !allChecked);
-    document.getElementById('toggle-all-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
+    document.getElementById('toggle-projects-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
+  }
+
+  function toggleAllTags() {
+    const boxes = [...document.querySelectorAll('#tag-list input[type="checkbox"]')];
+    const allChecked = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    document.getElementById('toggle-tags-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
   }
 
   function selectedProjects() {
@@ -606,9 +681,16 @@
       .filter(b => b.checked).map(b => b.value);
   }
 
+  function selectedTags() {
+    return new Set([...document.querySelectorAll('#tag-list input[type="checkbox"]')]
+      .filter(b => b.checked).map(b => b.value));
+  }
+
   function resetAll() {
-    document.querySelectorAll('#project-list input[type="checkbox"]').forEach(b => b.checked = true);
-    document.getElementById('toggle-all-btn').textContent = 'Deselect all';
+    document.querySelectorAll('#project-list input[type="checkbox"], #tag-list input[type="checkbox"]')
+      .forEach(b => b.checked = true);
+    document.getElementById('toggle-projects-btn').textContent = 'Deselect all';
+    document.getElementById('toggle-tags-btn').textContent = 'Deselect all';
     const dates = allEntries.map(e => e['Start date']).sort();
     document.getElementById('date-from').value = dates[0];
     document.getElementById('date-to').value = dates[dates.length - 1];
@@ -619,20 +701,34 @@
   // ── Report Generation ────────────────────────────────────────────────────
 
   function generateReport() {
+    _copyStore = {}; _copyId = 0;
+
     const dateFrom = document.getElementById('date-from').value;
-    const dateTo = document.getElementById('date-to').value;
+    const dateTo   = document.getElementById('date-to').value;
     const projects = new Set(selectedProjects());
+    const tags     = selectedTags();
     const notesFormat = document.querySelector('input[name="notes-format"]:checked').value;
+    const hasTagFilter = allTags.length > 0;
 
     if (!projects.size) { renderEmpty('No projects selected.'); return; }
 
-    // Filter
+    // Filter entries
     const filtered = allEntries.filter(e => {
-      const d = e['Start date'];
+      const d    = e['Start date'];
       const proj = e['Project'] || '(No Project)';
       if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      if (!projects.has(proj)) return false;
+      if (dateTo   && d > dateTo)   return false;
+      if (!projects.has(proj))       return false;
+      // tag filter: pass if entry has no tags and no tags are deselected,
+      // or if at least one of the entry's tags is selected
+      if (hasTagFilter) {
+        const entryTags = splitTags(e['Tags']);
+        if (entryTags.length === 0) {
+          // untagged entries — include always (not affected by tag filter)
+        } else {
+          if (!entryTags.some(t => tags.has(t))) return false;
+        }
+      }
       return true;
     });
 
@@ -641,34 +737,28 @@
     // Group: date → project → tagKey → [entries]
     const grouped = {};
     for (const e of filtered) {
-      const date = e['Start date'];
-      const proj = e['Project'] || '(No Project)';
+      const date   = e['Start date'];
+      const proj   = e['Project'] || '(No Project)';
       const tagKey = normTags(e['Tags']);
-
-      if (!grouped[date]) grouped[date] = {};
-      if (!grouped[date][proj]) grouped[date][proj] = {};
+      if (!grouped[date])            grouped[date] = {};
+      if (!grouped[date][proj])      grouped[date][proj] = {};
       if (!grouped[date][proj][tagKey]) grouped[date][proj][tagKey] = [];
       grouped[date][proj][tagKey].push(e);
     }
 
-    // Totals per project (across all dates, in filtered set)
+    // Project totals across filtered period
     const projectTotals = {};
     for (const e of filtered) {
       const proj = e['Project'] || '(No Project)';
-      if (!projectTotals[proj]) projectTotals[proj] = 0;
-      projectTotals[proj] += durationToHours(e['Duration']);
+      projectTotals[proj] = (projectTotals[proj] || 0) + durationToHours(e['Duration']);
     }
-
     const grandTotal = Object.values(projectTotals).reduce((a, b) => a + b, 0);
 
-    // Render
-    const sortedDates = Object.keys(grouped).sort();
+    // ── Render day blocks ──
     let html = '';
-
-    for (const date of sortedDates) {
+    for (const date of Object.keys(grouped).sort()) {
       const dayEntries = filtered.filter(e => e['Start date'] === date);
-      const dayTotal = roundQ(dayEntries.reduce((sum, e) => sum + durationToHours(e['Duration']), 0));
-      const sortedProjects = Object.keys(grouped[date]).sort();
+      const dayTotal   = roundQ(dayEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
 
       html += `<div class="day-block">
         <div class="day-header">
@@ -677,35 +767,32 @@
         </div>
         <div class="day-body">`;
 
-      for (const proj of sortedProjects) {
-        const projDayEntries = Object.values(grouped[date][proj]).flat();
-        const projDayTotal = roundQ(projDayEntries.reduce((sum, e) => sum + durationToHours(e['Duration']), 0));
-        const sortedTags = Object.keys(grouped[date][proj]).sort();
+      for (const proj of Object.keys(grouped[date]).sort()) {
+        const projEntries = Object.values(grouped[date][proj]).flat();
+        const projTotal   = roundQ(projEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
 
         html += `<div class="project-block">
           <div class="project-header">
             <span class="project-name">${escHtml(proj)}</span>
-            <span class="project-total">${fmtH(projDayTotal)}</span>
+            <span class="project-total">${fmtH(projTotal)}</span>
           </div>`;
 
-        for (const tagKey of sortedTags) {
-          const tagEntries = grouped[date][proj][tagKey];
-          const rawHours = tagEntries.reduce((sum, e) => sum + durationToHours(e['Duration']), 0);
-          const roundedHours = roundQ(rawHours);
+        for (const tagKey of Object.keys(grouped[date][proj]).sort()) {
+          const tagEntries    = grouped[date][proj][tagKey];
+          const roundedHours  = roundQ(tagEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
 
-          const notes = [...new Set(
-            tagEntries
-              .map(e => (e['Description'] || '').trim())
-              .filter(Boolean)
-          )];
+          const notes = [...new Set(tagEntries.map(e => (e['Description'] || '').trim()).filter(Boolean))];
 
-          let notesHtml = '';
+          const notesCopyText = notesFormat === 'list' ? notes.join('\n') : notes.join(', ');
+          const notesCopyId   = storeText(notesCopyText);
+
+          let notesInner = '';
           if (notes.length === 0) {
-            notesHtml = `<div class="notes-empty">No description</div>`;
+            notesInner = `<div class="notes-empty">No description</div>`;
           } else if (notesFormat === 'list') {
-            notesHtml = `<ul class="notes-list">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>`;
+            notesInner = `<ul class="notes-list">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>`;
           } else {
-            notesHtml = `<div class="notes-paragraph">${escHtml(notes.join(', '))}</div>`;
+            notesInner = `<div class="notes-paragraph">${escHtml(notes.join(', '))}</div>`;
           }
 
           const tagDisplay = tagKey
@@ -715,9 +802,12 @@
           html += `<div class="tag-section">
             <div class="tag-row">
               <div>${tagDisplay}</div>
-              <div class="tag-hours">${fmtH(roundedHours)}<span>(${fmtH(roundQ(rawHours))} rounded)</span></div>
+              <div class="tag-hours">${fmtH(roundedHours)}</div>
             </div>
-            ${notesHtml}
+            <div class="notes-row">
+              <div class="notes-content">${notesInner}</div>
+              ${notes.length ? `<button class="btn-copy" onclick="copyStored(this,${notesCopyId})">Copy notes</button>` : ''}
+            </div>
           </div>`;
         }
 
@@ -727,33 +817,44 @@
       html += `</div></div>`; // day-body, day-block
     }
 
-    // Summary table
-    const sortedProjNames = Object.keys(projectTotals).sort();
+    // ── Summary table ──
     html += `<div class="summary-block">
       <div class="summary-header">Project Summary</div>
-      <table class="summary-table">
-        <tbody>`;
+      <table class="summary-table"><tbody>`;
 
-    for (const proj of sortedProjNames) {
+    for (const proj of Object.keys(projectTotals).sort()) {
+      const hrs      = fmtH(roundQ(projectTotals[proj]));
+      const copyId   = storeText(hrs);
       html += `<tr>
         <td>${escHtml(proj)}</td>
-        <td class="col-hours">${fmtH(roundQ(projectTotals[proj]))}</td>
+        <td class="col-hours">
+          <span class="col-hours-inner">
+            ${escHtml(hrs)}
+            <button class="btn-copy" onclick="copyStored(this,${copyId})">Copy</button>
+          </span>
+        </td>
       </tr>`;
     }
 
+    const grandHrs    = fmtH(roundQ(grandTotal));
+    const grandCopyId = storeText(grandHrs);
     html += `</tbody><tfoot>
       <tr class="summary-footer">
         <td>Total</td>
-        <td class="col-hours">${fmtH(roundQ(grandTotal))}</td>
+        <td class="col-hours">
+          <span class="col-hours-inner">
+            ${escHtml(grandHrs)}
+            <button class="btn-copy" onclick="copyStored(this,${grandCopyId})">Copy</button>
+          </span>
+        </td>
       </tr>
     </tfoot></table></div>`;
 
-    // Meta info
+    // Meta
     const metaParts = [];
     if (dateFrom || dateTo) {
-      const from = dateFrom ? new Date(dateFrom + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-      const to = dateTo ? new Date(dateTo + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-      metaParts.push(`${from} – ${to}`);
+      const fmt = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      metaParts.push(`${dateFrom ? fmt(dateFrom) : '—'} – ${dateTo ? fmt(dateTo) : '—'}`);
     }
     metaParts.push(`${filtered.length} entries · ${fmtH(roundQ(grandTotal))} total`);
 
@@ -761,6 +862,38 @@
     document.getElementById('report-body').innerHTML = html;
     document.getElementById('report-output').style.display = 'block';
   }
+
+  // ── Clipboard ────────────────────────────────────────────────────────────
+
+  function copyStored(btn, id) {
+    const text = _copyStore[id] ?? '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => fallbackCopy(text, btn));
+    } else {
+      fallbackCopy(text, btn);
+    }
+  }
+
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); flashCopied(btn); } catch {}
+    document.body.removeChild(ta);
+  }
+
+  function flashCopied(btn) {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = btn.dataset.label || (btn.closest('.notes-row') ? 'Copy notes' : 'Copy');
+      btn.classList.remove('copied');
+    }, 1600);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
 
   function renderEmpty(msg) {
     document.getElementById('report-body').innerHTML = `<div class="state-msg">${escHtml(msg)}</div>`;
@@ -770,18 +903,15 @@
 
   function showError(msg) {
     const el = document.getElementById('error-msg');
-    el.textContent = msg;
-    el.style.display = 'block';
+    el.textContent = msg; el.style.display = 'block';
   }
   function hideError() { document.getElementById('error-msg').style.display = 'none'; }
 
   function escHtml(str) {
     return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+  function escAttr(str) { return escHtml(str); }
 </script>
 </body>
 </html>
