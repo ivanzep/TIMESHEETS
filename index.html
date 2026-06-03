@@ -352,12 +352,22 @@
       color: #444;
       line-height: 1.6;
     }
-    .notes-list {
-      list-style: disc;
-      padding-left: 18px;
-      font-size: 13px;
-      color: #444;
+    .notes-list { font-size: 13px; color: #444; }
+    .note-item {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 2px 0;
       line-height: 1.7;
+    }
+    .note-bullet { color: #bbb; flex-shrink: 0; }
+    .note-text { flex: 1; min-width: 0; }
+    .note-hours-inline {
+      color: #c0c0cc;
+      font-size: 11px;
+      font-weight: 400;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .notes-empty { font-size: 12px; color: #bbb; font-style: italic; }
 
@@ -786,16 +796,32 @@
           const tagEntries    = grouped[date][proj][tagKey];
           const roundedHours  = roundQ(tagEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
 
-          const notes = [...new Set(tagEntries.map(e => (e['Description'] || '').trim()).filter(Boolean))];
+          // noteMap preserves insertion order and tracks raw hours per description
+          const noteMap = new Map();
+          for (const e of tagEntries) {
+            const desc = (e['Description'] || '').trim();
+            if (!desc) continue;
+            noteMap.set(desc, (noteMap.get(desc) || 0) + durationToHours(e['Duration']));
+          }
+          const notes = [...noteMap.keys()];
 
-          const notesCopyText = notesFormat === 'list' ? notes.join('\n') : notes.join(', ');
+          const notesCopyText = notes.join('\n');
           const notesCopyId   = storeText(notesCopyText);
 
           let notesInner = '';
           if (notes.length === 0) {
             notesInner = `<div class="notes-empty">No description</div>`;
           } else if (notesFormat === 'list') {
-            notesInner = `<ul class="notes-list">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>`;
+            const items = [...noteMap.entries()].map(([desc, hrs]) => {
+              const noteId = storeText(desc);
+              return `<div class="note-item">
+                <span class="note-bullet">•</span>
+                <span class="note-text">${escHtml(desc)}</span>
+                <span class="note-hours-inline">${escHtml(fmtH(roundQ(hrs)))}</span>
+                <button class="btn-copy btn-copy-note" onclick="copyStored(this,${noteId})">Copy</button>
+              </div>`;
+            }).join('');
+            notesInner = `<div class="notes-list">${items}</div>`;
           } else {
             notesInner = `<div class="notes-paragraph">${escHtml(notes.join(', '))}</div>`;
           }
@@ -811,7 +837,7 @@
             </div>
             <div class="notes-row">
               <div class="notes-content">${notesInner}</div>
-              ${notes.length ? `<button class="btn-copy" onclick="copyStored(this,${notesCopyId})">Copy notes</button>` : ''}
+              ${notes.length ? `<button class="btn-copy" onclick="copyStored(this,${notesCopyId})">${notesFormat === 'list' ? 'Copy all' : 'Copy notes'}</button>` : ''}
             </div>
           </div>`;
         }
