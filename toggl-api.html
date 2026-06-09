@@ -360,6 +360,37 @@
   <!-- Step 1: Connect -->
   <div class="card" id="connect-section">
     <div class="card-title">Connect to Toggl Track</div>
+
+    <!-- File-protocol warning -->
+    <div id="file-warning" style="display:none; background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:12px 16px; font-size:13px; margin-bottom:18px; line-height:1.6;">
+      <strong>⚠️ Local file detected.</strong> Browsers block API calls from files opened directly from disk (<code>file://</code>).
+      To use the API you need a proxy — see the setup below. Or open the page from
+      GitHub Pages where it may work without a proxy.
+    </div>
+
+    <!-- Proxy setup -->
+    <details id="proxy-details" style="margin-bottom:18px;">
+      <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--muted); user-select:none;">
+        Proxy URL <span style="font-weight:400; color:#bbb;">— required when opening locally, may be needed on GitHub Pages</span>
+      </summary>
+      <div style="margin-top:12px; font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:12px;">
+        Toggl's API blocks direct browser requests (CORS). A free Cloudflare Worker acts as a thin proxy to fix this.<br>
+        <strong>Steps:</strong> go to
+        <a href="https://dash.cloudflare.com" target="_blank" rel="noopener" style="color:var(--accent-dark)">dash.cloudflare.com</a>
+        → Workers &amp; Pages → Create → paste the contents of <code>worker.js</code> from this repo → Deploy.
+        Then paste your worker URL below.
+      </div>
+      <div style="display:flex; gap:10px;">
+        <input type="url" id="proxy-input" class="token-input"
+          placeholder="https://toggl-proxy.yourname.workers.dev"
+          style="font-family:inherit; letter-spacing:0;"
+          value="">
+        <button class="btn-primary" onclick="saveProxy()" style="white-space:nowrap">Save proxy</button>
+        <button class="btn-secondary" onclick="clearProxy()" style="white-space:nowrap">Clear</button>
+      </div>
+      <div id="proxy-status" style="font-size:12px; color:var(--muted); margin-top:6px;"></div>
+    </details>
+
     <p class="connect-desc">
       Enter your Toggl Track API token. Find it at
       <a href="https://track.toggl.com/profile" target="_blank" rel="noopener">track.toggl.com/profile</a>
@@ -457,23 +488,58 @@
 <script>
   // ── State ────────────────────────────────────────────────────────────────
 
-  let token = sessionStorage.getItem('toggl_token') || '';
-  let allEntries  = [];   // normalised time entries
+  let token     = sessionStorage.getItem('toggl_token') || '';
+  let proxyBase = localStorage.getItem('toggl_proxy')  || '';
+  let allEntries  = [];
   let allProjects = [];
   let allTags     = [];
   let _copyStore  = {};
   let _copyId     = 0;
   function storeText(t) { const id = _copyId++; _copyStore[id] = t; return id; }
 
-  // Restore session
-  if (token) { document.getElementById('token-input').value = token; tryRestoreSession(); }
+  // Detect file:// and restore saved proxy/token
+  (function init() {
+    if (window.location.protocol === 'file:') {
+      document.getElementById('file-warning').style.display = 'block';
+      document.getElementById('proxy-details').open = true;
+    }
+    if (proxyBase) {
+      document.getElementById('proxy-input').value = proxyBase;
+      document.getElementById('proxy-status').textContent = `Proxy saved: ${proxyBase}`;
+    }
+    if (token) {
+      document.getElementById('token-input').value = token;
+      tryRestoreSession();
+    }
+  })();
+
+  // ── Proxy helpers ─────────────────────────────────────────────────────────
+
+  function saveProxy() {
+    const val = document.getElementById('proxy-input').value.trim().replace(/\/$/, '');
+    proxyBase = val;
+    if (val) { localStorage.setItem('toggl_proxy', val); }
+    else      { localStorage.removeItem('toggl_proxy'); }
+    document.getElementById('proxy-status').textContent = val ? `Proxy saved: ${val}` : 'Proxy cleared.';
+  }
+
+  function clearProxy() {
+    proxyBase = '';
+    localStorage.removeItem('toggl_proxy');
+    document.getElementById('proxy-input').value = '';
+    document.getElementById('proxy-status').textContent = 'Proxy cleared.';
+  }
+
+  function apiBase() {
+    return proxyBase || 'https://api.track.toggl.com';
+  }
 
   // ── Auth helpers ─────────────────────────────────────────────────────────
 
   function authHeader() { return 'Basic ' + btoa(token + ':api_token'); }
 
   async function togglGet(path) {
-    const r = await fetch('https://api.track.toggl.com' + path, {
+    const r = await fetch(apiBase() + path, {
       headers: { 'Authorization': authHeader() }
     });
     if (r.status === 403 || r.status === 401) throw new Error('auth');
