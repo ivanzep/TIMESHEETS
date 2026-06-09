@@ -357,45 +357,51 @@
 
 <div class="container">
 
-  <!-- Step 1: Connect -->
-  <div class="card" id="connect-section">
-    <div class="card-title">Connect to Toggl Track</div>
-
-    <!-- File-protocol warning -->
-    <div id="file-warning" style="display:none; background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:12px 16px; font-size:13px; margin-bottom:18px; line-height:1.6;">
-      <strong>⚠️ Local file detected.</strong> Browsers block API calls from files opened directly from disk (<code>file://</code>).
-      To use the API you need a proxy — see the setup below. Or open the page from
-      GitHub Pages where it may work without a proxy.
+  <!-- Step 1: Proxy setup (always required) -->
+  <div class="card" id="proxy-section">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <span style="background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.5px;">STEP 1</span>
+      <div class="card-title" style="margin:0;">Proxy Setup</div>
+      <span id="proxy-saved-badge" style="display:none; background:#e8faf2; color:#257953; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; border:1px solid #a8e6c8;">✓ Saved</span>
     </div>
 
-    <!-- Proxy setup -->
-    <details id="proxy-details" style="margin-bottom:18px;">
-      <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--muted); user-select:none;">
-        Proxy URL <span style="font-weight:400; color:#bbb;">— required when opening locally, may be needed on GitHub Pages</span>
-      </summary>
-      <div style="margin-top:12px; font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:12px;">
-        Toggl's API blocks direct browser requests (CORS). A free Cloudflare Worker acts as a thin proxy to fix this.<br>
-        <strong>Steps:</strong> go to
-        <a href="https://dash.cloudflare.com" target="_blank" rel="noopener" style="color:var(--accent-dark)">dash.cloudflare.com</a>
-        → Workers &amp; Pages → Create → paste the contents of <code>worker.js</code> from this repo → Deploy.
-        Then paste your worker URL below.
-      </div>
-      <div style="display:flex; gap:10px;">
-        <input type="url" id="proxy-input" class="token-input"
-          placeholder="https://toggl-proxy.yourname.workers.dev"
-          style="font-family:inherit; letter-spacing:0;"
-          value="">
-        <button class="btn-primary" onclick="saveProxy()" style="white-space:nowrap">Save proxy</button>
-        <button class="btn-secondary" onclick="clearProxy()" style="white-space:nowrap">Clear</button>
-      </div>
-      <div id="proxy-status" style="font-size:12px; color:var(--muted); margin-top:6px;"></div>
-    </details>
+    <p style="font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:16px;">
+      Toggl's API blocks direct browser requests from any external site (CORS restriction).
+      A free <strong>Cloudflare Worker</strong> acts as a one-line proxy to work around this.
+      Once deployed you only need to do this once.
+    </p>
 
+    <div style="background:#f7f7f8; border:1px solid var(--border); border-radius:9px; padding:16px 18px; margin-bottom:16px; font-size:13px; line-height:1.9;">
+      <strong>Deploy the proxy (≈ 3 minutes, free):</strong>
+      <ol style="margin:8px 0 0 18px; color:var(--text);">
+        <li>Open <a href="https://dash.cloudflare.com" target="_blank" rel="noopener" style="color:var(--accent-dark); font-weight:600;">dash.cloudflare.com</a> → <em>Workers &amp; Pages</em> → <em>Create</em> → <em>Create Worker</em></li>
+        <li>Click <em>Edit code</em>, delete the default code, paste the entire contents of <code>worker.js</code> from this repo</li>
+        <li>Click <em>Deploy</em> — you'll get a URL like <code>https://worker-name.yourname.workers.dev</code></li>
+        <li>Paste that URL in the field below and click <strong>Save</strong></li>
+      </ol>
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:stretch;">
+      <input type="url" id="proxy-input" class="token-input"
+        placeholder="https://worker-name.yourname.workers.dev"
+        style="font-family:inherit; letter-spacing:0;">
+      <button class="btn-primary" onclick="saveProxy()" style="white-space:nowrap;">Save</button>
+      <button class="btn-secondary" onclick="clearProxy()" style="white-space:nowrap;">Clear</button>
+    </div>
+    <div id="proxy-status" style="font-size:12px; color:var(--muted); margin-top:7px; min-height:18px;"></div>
+  </div>
+
+  <!-- Step 2: Connect -->
+  <div class="card" id="connect-section">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <span style="background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.5px;">STEP 2</span>
+      <div class="card-title" style="margin:0;">Connect to Toggl Track</div>
+    </div>
     <p class="connect-desc">
-      Enter your Toggl Track API token. Find it at
+      Find your API token at
       <a href="https://track.toggl.com/profile" target="_blank" rel="noopener">track.toggl.com/profile</a>
-      → scroll to bottom → <em>API Token</em>.<br>
-      Your token is stored only in this browser tab's session memory and is never shared.
+      → scroll to the bottom → <em>API Token</em>.<br>
+      Stored only in this tab's session memory — cleared when you close the tab.
     </p>
     <div class="token-row">
       <input type="password" id="token-input" class="token-input" placeholder="Paste API token here…" autocomplete="off" autocorrect="off" spellcheck="false">
@@ -497,15 +503,12 @@
   let _copyId     = 0;
   function storeText(t) { const id = _copyId++; _copyStore[id] = t; return id; }
 
-  // Detect file:// and restore saved proxy/token
+  // Restore saved proxy / token on load
   (function init() {
-    if (window.location.protocol === 'file:') {
-      document.getElementById('file-warning').style.display = 'block';
-      document.getElementById('proxy-details').open = true;
-    }
     if (proxyBase) {
       document.getElementById('proxy-input').value = proxyBase;
-      document.getElementById('proxy-status').textContent = `Proxy saved: ${proxyBase}`;
+      document.getElementById('proxy-status').textContent = `Active: ${proxyBase}`;
+      document.getElementById('proxy-saved-badge').style.display = 'inline-flex';
     }
     if (token) {
       document.getElementById('token-input').value = token;
@@ -518,16 +521,17 @@
   function saveProxy() {
     const val = document.getElementById('proxy-input').value.trim().replace(/\/$/, '');
     proxyBase = val;
-    if (val) { localStorage.setItem('toggl_proxy', val); }
-    else      { localStorage.removeItem('toggl_proxy'); }
-    document.getElementById('proxy-status').textContent = val ? `Proxy saved: ${val}` : 'Proxy cleared.';
+    if (val) { localStorage.setItem('toggl_proxy', val); } else { localStorage.removeItem('toggl_proxy'); }
+    document.getElementById('proxy-status').textContent = val ? `Active: ${val}` : 'Proxy cleared.';
+    document.getElementById('proxy-saved-badge').style.display = val ? 'inline-flex' : 'none';
   }
 
   function clearProxy() {
     proxyBase = '';
     localStorage.removeItem('toggl_proxy');
     document.getElementById('proxy-input').value = '';
-    document.getElementById('proxy-status').textContent = 'Proxy cleared.';
+    document.getElementById('proxy-status').textContent = '';
+    document.getElementById('proxy-saved-badge').style.display = 'none';
   }
 
   function apiBase() {
@@ -570,9 +574,11 @@
       if (e.message === 'auth') {
         showError('connect-error', 'Invalid token — check you copied it correctly from your Toggl profile.');
       } else if (e instanceof TypeError) {
-        showError('connect-error', 'Request blocked — this is usually a CORS or network issue. Try opening the page from a different origin, or use the CSV export version instead.');
+        showError('connect-error', 'Proxy required — Toggl\'s API blocks all direct browser requests. Complete Step 1 above: deploy worker.js to Cloudflare and paste the URL, then try again.');
+        document.getElementById('proxy-section').scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => document.getElementById('proxy-input').focus(), 400);
       } else {
-        showError('connect-error', `Connection failed: ${e.message}. Check your network and try again.`);
+        showError('connect-error', `Connection failed: ${e.message}`);
       }
     }
   }
