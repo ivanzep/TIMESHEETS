@@ -474,7 +474,7 @@
 
   async function togglGet(path) {
     const r = await fetch('https://api.track.toggl.com' + path, {
-      headers: { 'Authorization': authHeader(), 'Content-Type': 'application/json' }
+      headers: { 'Authorization': authHeader() }
     });
     if (r.status === 403 || r.status === 401) throw new Error('auth');
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -484,7 +484,7 @@
   // ── Connect ──────────────────────────────────────────────────────────────
 
   async function connect() {
-    const input = document.getElementById('token-input').value.trim();
+    const input = document.getElementById('token-input').value.trim().replace(/\s/g, '');
     if (!input) return;
     token = input;
     hideError('connect-error');
@@ -501,9 +501,13 @@
       showFetchSection();
     } catch (e) {
       clearStatus();
-      showError('connect-error', e.message === 'auth'
-        ? 'Invalid token — check you copied it correctly from your Toggl profile.'
-        : 'Could not reach Toggl API. Check your connection and try again.');
+      if (e.message === 'auth') {
+        showError('connect-error', 'Invalid token — check you copied it correctly from your Toggl profile.');
+      } else if (e instanceof TypeError) {
+        showError('connect-error', 'Request blocked — this is usually a CORS or network issue. Try opening the page from a different origin, or use the CSV export version instead.');
+      } else {
+        showError('connect-error', `Connection failed: ${e.message}. Check your network and try again.`);
+      }
     }
   }
 
@@ -642,9 +646,13 @@
 
       renderReport();
     } catch (e) {
-      showError('fetch-error', e.message === 'auth'
-        ? 'Session expired — please disconnect and reconnect.'
-        : `Fetch failed: ${e.message}`);
+      if (e.message === 'auth') {
+        showError('fetch-error', 'Session expired — please disconnect and reconnect.');
+      } else if (e instanceof TypeError) {
+        showError('fetch-error', 'Request blocked — CORS or network error. See browser console for details.');
+      } else {
+        showError('fetch-error', `Fetch failed: ${e.message}`);
+      }
     } finally {
       clearStatus(); setFetching(false);
     }
