@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Toggl Report Generator</title>
+  <title>Toggl Track Report Generator</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -440,7 +440,7 @@
 
 <header class="app-header">
   <span>⏱</span>
-  <h1>Toggl Report Generator</h1>
+  <h1>Toggl Track Report Generator</h1>
 </header>
 
 <div class="container">
@@ -451,7 +451,6 @@
       <input type="file" id="csv-input" accept=".csv,text/csv,text/plain,text/comma-separated-values">
       <div class="upload-icon">📄</div>
       <p><strong>Tap or drop your Toggl CSV export here</strong></p>
-      <p style="font-size:12px; margin-top:4px;">Desktop app · Web export (Detailed report)</p>
       <span class="btn-upload">Browse file</span>
       <div class="file-name" id="file-name-display"></div>
     </label>
@@ -623,32 +622,18 @@
     reader.readAsText(file);
   }
 
-  function detectFormat(entry) {
-    const keys = Object.keys(entry);
-    if (!keys.includes('Start date') || !keys.includes('Duration') || !keys.includes('Project')) return null;
-    if (keys.includes('User')) return 'web';       // Toggl web detailed export
-    if (keys.includes('Email')) return 'desktop';  // Toggl desktop app export
-    return 'generic';
-  }
-
   function processRawCSV(text, fileName) {
     const entries = parseCSV(text);
 
-    const fmt = entries.length ? detectFormat(entries[0]) : null;
-    if (!fmt) {
-      showError(
-        'Unrecognised CSV format. Export from:\n' +
-        '• Desktop app: File → Export data → Export time entries as CSV\n' +
-        '• Web: Reports → Detailed → Export CSV'
-      );
+    if (!entries.length || !entries[0].hasOwnProperty('Start date')) {
+      showError('Unrecognised CSV format. Please export a Detailed Report from Toggl Track (Reports → Detailed → Export CSV).');
       return;
     }
 
     allEntries = entries.filter(e => e['Duration'] && !e['Duration'].startsWith('-'));
     if (!allEntries.length) { showError('No valid time entries found in the file.'); return; }
 
-    const label = fmt === 'web' ? 'web export' : fmt === 'desktop' ? 'desktop export' : 'export';
-    document.getElementById('file-name-display').textContent = `✓ ${fileName} — ${allEntries.length} entries (${label})`;
+    document.getElementById('file-name-display').textContent = `✓ ${fileName} — ${allEntries.length} entries loaded`;
 
     // Projects
     allProjects = [...new Set(allEntries.map(e => e['Project'] || '(No Project)'))].sort();
