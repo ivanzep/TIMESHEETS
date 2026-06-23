@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toggl Track Report Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #e57cd8;
+      --accent-dark: #c45fb8;
+      --bg: #f7f7f8;
+      --card: #ffffff;
+      --border: #e2e2e6;
+      --text: #1a1a2e;
+      --muted: #6b6b80;
+      --tag-bg: #f0eaff;
+      --tag-text: #6b35c9;
+      --date-bg: #1a1a2e;
+      --date-text: #ffffff;
+      --project-bg: #f7f3ff;
+      --project-border: #d4c5f9;
+      --total-bg: #fafafa;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      background: var(--date-bg);
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .app-header h1 { font-size: 18px; font-weight: 600; letter-spacing: .3px; }
+    .app-header span { color: var(--accent); font-size: 22px; }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 28px 24px 60px; }
+
+    /* ── Upload ── */
+    .upload-zone {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      background: var(--card);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      display: block;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: #fdf7ff;
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .upload-icon { font-size: 40px; margin-bottom: 12px; }
+    .upload-zone p { color: var(--muted); font-size: 15px; }
+    .upload-zone strong { color: var(--text); }
+    .btn-upload {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 9px 22px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: background .15s;
+    }
+    .btn-upload:hover { background: var(--accent-dark); }
+    .file-name { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+    /* ── Filters ── */
+    #filters-panel {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 24px;
+      margin-top: 20px;
+      box-shadow: var(--shadow);
+    }
+    .filters-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+    .filters-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .filters-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-top: 18px;
+    }
+    @media (max-width: 680px) {
+      .filters-grid { grid-template-columns: 1fr; }
+      .filters-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .filter-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+    .filter-group input[type="date"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+    }
+    .filter-group input[type="date"]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    .check-list {
+      max-height: 140px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 10px;
+      background: #fff;
+    }
+    .check-list label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      padding: 3px 0;
+      cursor: pointer;
+    }
+    .check-list label:hover { color: var(--accent-dark); }
+    .check-list input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+    .toggle-all {
+      font-size: 11px;
+      color: var(--accent-dark);
+      cursor: pointer;
+      margin-bottom: 6px;
+      display: inline-block;
+      background: none;
+      border: none;
+      padding: 0;
+      font-weight: 600;
+    }
+    .toggle-all:hover { text-decoration: underline; }
+
+    .notes-format-group { display: flex; flex-direction: column; gap: 8px; }
+    .notes-format-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .notes-format-group input[type="radio"] { accent-color: var(--accent); }
+
+    .filters-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-primary {
+      padding: 9px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-secondary {
+      padding: 9px 18px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Copy button ── */
+    .btn-copy {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .btn-copy.copied { border-color: #48c78e; color: #257953; background: #f0fff8; }
+
+    /* ── Report ── */
+    #report-output {
+      display: none;
+      margin-top: 28px;
+    }
+    .report-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .report-title { font-size: 18px; font-weight: 700; }
+    .report-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .btn-print {
+      padding: 8px 18px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color .15s;
+    }
+    .btn-print:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Day card ── */
+    .day-block { margin-bottom: 24px; }
+    .day-header {
+      background: var(--date-bg);
+      color: var(--date-text);
+      padding: 10px 18px;
+      border-radius: 9px 9px 0 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .day-label { font-size: 15px; font-weight: 700; }
+    .day-total { font-size: 13px; color: #ccc; }
+    .day-body {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 9px 9px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Project row ── */
+    .project-block { border-top: 1px solid var(--border); }
+    .project-block:first-child { border-top: none; }
+    .project-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 18px;
+      background: var(--project-bg);
+      border-left: 3px solid var(--project-border);
+    }
+    .project-name { font-weight: 700; font-size: 14px; color: var(--text); }
+    .project-total { font-size: 13px; font-weight: 700; color: var(--accent-dark); display: flex; align-items: center; gap: 8px; }
+    .btn-copy-proj { background: var(--project-bg); }
+
+    /* ── Tag section ── */
+    .tag-section { padding: 12px 18px 14px 21px; border-top: 1px solid #f0f0f4; }
+    .tag-section:first-of-type { border-top: none; }
+    .tag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .tag-badge.untagged { background: #f0f0f4; color: var(--muted); }
+    .tag-hours {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-left: auto;
+    }
+    .notes-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .notes-content { flex: 1; min-width: 0; }
+    .notes-paragraph {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.6;
+    }
+    .notes-list { font-size: 13px; color: #444; }
+    .note-item {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 2px 0;
+      line-height: 1.7;
+    }
+    .note-bullet { color: #bbb; flex-shrink: 0; }
+    .note-text { flex: 1; min-width: 0; }
+    .note-hours-inline {
+      color: #c0c0cc;
+      font-size: 11px;
+      font-weight: 400;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .notes-empty { font-size: 12px; color: #bbb; font-style: italic; }
+
+    /* ── Summary ── */
+    .summary-block {
+      margin-top: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .summary-header {
+      background: var(--total-bg);
+      padding: 12px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-table { width: 100%; border-collapse: collapse; }
+    .summary-table td { padding: 9px 18px; font-size: 13px; border-bottom: 1px solid #f5f5f7; vertical-align: middle; }
+    .summary-table tr:last-child td { border-bottom: none; }
+    .summary-table .col-hours {
+      text-align: right;
+      font-weight: 700;
+      color: var(--accent-dark);
+      white-space: nowrap;
+    }
+    .col-hours-inner { display: inline-flex; align-items: center; gap: 8px; }
+    .summary-footer td {
+      font-weight: 700;
+      font-size: 14px;
+      background: var(--total-bg);
+      border-top: 2px solid var(--border);
+    }
+    .summary-footer .col-hours { font-size: 16px; }
+
+    /* ── Empty/error states ── */
+    .state-msg {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .error-msg {
+      background: #fff3f3;
+      border: 1px solid #fbc4c4;
+      color: #c0392b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; }
+      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print, .btn-copy { display: none !important; }
+      #report-output { display: block !important; }
+      .day-block { break-inside: avoid; margin-bottom: 18px; }
+      .project-block { break-inside: avoid; }
+      .summary-block { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <span>⏱</span>
+  <h1>Toggl Track Report Generator</h1>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <section id="upload-section">
+    <label class="upload-zone" id="drop-zone">
+      <input type="file" id="csv-input" accept=".csv,text/csv,text/plain,text/comma-separated-values">
+      <div class="upload-icon">📄</div>
+      <p><strong>Tap or drop your Toggl CSV export here</strong></p>
+      <span class="btn-upload">Browse file</span>
+      <div class="file-name" id="file-name-display"></div>
+    </label>
+    <div class="error-msg" id="error-msg" style="display:none"></div>
+  </section>
+
+  <!-- Filters -->
+  <section id="filters-panel">
+    <div class="filters-title">Filters &amp; Options</div>
+    <div class="filters-grid">
+
+      <div class="filter-group">
+        <label for="date-from">Date from</label>
+        <input type="date" id="date-from">
+      </div>
+
+      <div class="filter-group">
+        <label for="date-to">Date to</label>
+        <input type="date" id="date-to">
+      </div>
+
+      <div class="filter-group">
+        <label>Notes format</label>
+        <div class="notes-format-group">
+          <label><input type="radio" name="notes-format" value="paragraph" checked> Paragraph (comma-separated)</label>
+          <label><input type="radio" name="notes-format" value="list"> Bullet list</label>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="filters-grid-2">
+
+      <div class="filter-group">
+        <label>Projects</label>
+        <button class="toggle-all" id="toggle-projects-btn" onclick="toggleAllProjects()">Deselect all</button>
+        <div class="check-list" id="project-list"></div>
+      </div>
+
+      <div class="filter-group">
+        <label>Tags</label>
+        <button class="toggle-all" id="toggle-tags-btn" onclick="toggleAllTags()">Deselect all</button>
+        <div class="check-list" id="tag-list"></div>
+      </div>
+
+    </div>
+
+    <div class="filters-actions">
+      <button class="btn-primary" onclick="generateReport()">Generate Report</button>
+      <button class="btn-secondary" onclick="resetAll()">Reset</button>
+    </div>
+  </section>
+
+  <!-- Report -->
+  <section id="report-output">
+    <div class="report-header-row">
+      <div>
+        <div class="report-title">Timesheet Report</div>
+        <div class="report-meta" id="report-meta"></div>
+      </div>
+      <button class="btn-print" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div id="report-body"></div>
+  </section>
+
+</div>
+
+<script>
+  let allEntries = [];
+  let allProjects = [];
+  let allTags = [];
+
+  // copy store — reset each generateReport() call
+  let _copyStore = {};
+  let _copyId = 0;
+  function storeText(text) { const id = _copyId++; _copyStore[id] = text; return id; }
+
+  // ── CSV Parsing ──────────────────────────────────────────────────────────
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQ = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const n = text[i + 1];
+
+      if (c === '"') {
+        if (inQ && n === '"') { field += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        row.push(field); field = '';
+      } else if ((c === '\n' || c === '\r') && !inQ) {
+        if (c === '\r' && n === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(f => f.trim() !== '')) rows.push(row);
+        row = [];
+      } else {
+        field += c;
+      }
+    }
+    if (field || row.length) { row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => {
+      const entry = {};
+      headers.forEach((h, i) => { entry[h] = (r[i] || '').trim(); });
+      return entry;
+    });
+  }
+
+  function durationToHours(dur) {
+    if (!dur || dur.startsWith('-')) return 0;
+    const parts = dur.split(':').map(Number);
+    if (parts.length < 2) return 0;
+    return (parts[0] || 0) + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600;
+  }
+
+  function roundQ(h) { return Math.round(h * 4) / 4; }
+
+  function fmtH(h) {
+    const v = parseFloat(h.toFixed(2));
+    return v % 1 === 0 ? v.toFixed(0) + 'h' : v + 'h';
+  }
+
+  function fmtDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function normTags(raw) {
+    if (!raw) return '';
+    return raw.split(',').map(t => t.trim()).filter(Boolean).sort().join(', ');
+  }
+
+  function splitTags(raw) {
+    if (!raw) return [];
+    return raw.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  // ── File Handling ────────────────────────────────────────────────────────
+
+  const dropZone = document.getElementById('drop-zone');
+  const csvInput = document.getElementById('csv-input');
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+  function onFileSelected() { if (csvInput.files && csvInput.files[0]) loadFile(csvInput.files[0]); }
+  csvInput.addEventListener('change', onFileSelected);
+  csvInput.addEventListener('input', onFileSelected);
+
+  function loadFile(file) {
+    const ok = file.name.endsWith('.csv') || file.type.includes('csv') || file.type.includes('text');
+    if (!ok) { showError('Please upload a .csv file exported from Toggl Track.'); return; }
+    hideError();
+    const reader = new FileReader();
+    reader.onload = e => processRawCSV(e.target.result, file.name);
+    reader.readAsText(file);
+  }
+
+  function processRawCSV(text, fileName) {
+    const entries = parseCSV(text);
+
+    if (!entries.length || !entries[0].hasOwnProperty('Start date')) {
+      showError('Unrecognised CSV format. Please export a Detailed Report from Toggl Track (Reports → Detailed → Export CSV).');
+      return;
+    }
+
+    allEntries = entries.filter(e => e['Duration'] && !e['Duration'].startsWith('-'));
+    if (!allEntries.length) { showError('No valid time entries found in the file.'); return; }
+
+    document.getElementById('file-name-display').textContent = `✓ ${fileName} — ${allEntries.length} entries loaded`;
+
+    // Projects
+    allProjects = [...new Set(allEntries.map(e => e['Project'] || '(No Project)'))].sort();
+    buildProjectCheckboxes();
+
+    // Tags — collect individual tags across all entries
+    const tagSet = new Set();
+    for (const e of allEntries) splitTags(e['Tags']).forEach(t => tagSet.add(t));
+    allTags = [...tagSet].sort();
+    buildTagCheckboxes();
+
+    // Date range
+    const dates = allEntries.map(e => e['Start date']).sort();
+    document.getElementById('date-from').value = dates[0];
+    document.getElementById('date-to').value = dates[dates.length - 1];
+
+    document.getElementById('filters-panel').style.display = 'block';
+    document.getElementById('report-output').style.display = 'none';
+
+    generateReport();
+  }
+
+  // ── Filters UI ───────────────────────────────────────────────────────────
+
+  function buildProjectCheckboxes() {
+    document.getElementById('project-list').innerHTML = allProjects.map(p => `
+      <label><input type="checkbox" value="${escAttr(p)}" checked> ${escHtml(p)}</label>`).join('');
+  }
+
+  function buildTagCheckboxes() {
+    const list = document.getElementById('tag-list');
+    if (!allTags.length) {
+      list.innerHTML = '<span style="font-size:12px;color:#bbb;padding:4px 2px;display:block">No tags in data</span>';
+      return;
+    }
+    list.innerHTML = allTags.map(t => `
+      <label><input type="checkbox" value="${escAttr(t)}" checked> ${escHtml(t)}</label>`).join('');
+  }
+
+  function toggleAllProjects() {
+    const boxes = [...document.querySelectorAll('#project-list input[type="checkbox"]')];
+    const allChecked = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    document.getElementById('toggle-projects-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
+  }
+
+  function toggleAllTags() {
+    const boxes = [...document.querySelectorAll('#tag-list input[type="checkbox"]')];
+    const allChecked = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    document.getElementById('toggle-tags-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
+  }
+
+  function selectedProjects() {
+    return [...document.querySelectorAll('#project-list input[type="checkbox"]')]
+      .filter(b => b.checked).map(b => b.value);
+  }
+
+  function selectedTags() {
+    return new Set([...document.querySelectorAll('#tag-list input[type="checkbox"]')]
+      .filter(b => b.checked).map(b => b.value));
+  }
+
+  function resetAll() {
+    document.querySelectorAll('#project-list input[type="checkbox"], #tag-list input[type="checkbox"]')
+      .forEach(b => b.checked = true);
+    document.getElementById('toggle-projects-btn').textContent = 'Deselect all';
+    document.getElementById('toggle-tags-btn').textContent = 'Deselect all';
+    const dates = allEntries.map(e => e['Start date']).sort();
+    document.getElementById('date-from').value = dates[0];
+    document.getElementById('date-to').value = dates[dates.length - 1];
+    document.querySelector('input[name="notes-format"][value="paragraph"]').checked = true;
+    generateReport();
+  }
+
+  // ── Report Generation ────────────────────────────────────────────────────
+
+  function generateReport() {
+    _copyStore = {}; _copyId = 0;
+
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo   = document.getElementById('date-to').value;
+    const projects = new Set(selectedProjects());
+    const tags     = selectedTags();
+    const notesFormat = document.querySelector('input[name="notes-format"]:checked').value;
+    const hasTagFilter = allTags.length > 0;
+
+    if (!projects.size) { renderEmpty('No projects selected.'); return; }
+
+    // Filter entries
+    const filtered = allEntries.filter(e => {
+      const d    = e['Start date'];
+      const proj = e['Project'] || '(No Project)';
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo   && d > dateTo)   return false;
+      if (!projects.has(proj))       return false;
+      // tag filter: pass if entry has no tags and no tags are deselected,
+      // or if at least one of the entry's tags is selected
+      if (hasTagFilter) {
+        const entryTags = splitTags(e['Tags']);
+        if (entryTags.length === 0) {
+          // untagged entries — include always (not affected by tag filter)
+        } else {
+          if (!entryTags.some(t => tags.has(t))) return false;
+        }
+      }
+      return true;
+    });
+
+    if (!filtered.length) { renderEmpty('No entries match the current filters.'); return; }
+
+    // Group: date → project → tagKey → [entries]
+    const grouped = {};
+    for (const e of filtered) {
+      const date   = e['Start date'];
+      const proj   = e['Project'] || '(No Project)';
+      const tagKey = normTags(e['Tags']);
+      if (!grouped[date])            grouped[date] = {};
+      if (!grouped[date][proj])      grouped[date][proj] = {};
+      if (!grouped[date][proj][tagKey]) grouped[date][proj][tagKey] = [];
+      grouped[date][proj][tagKey].push(e);
+    }
+
+    // Project totals across filtered period
+    const projectTotals = {};
+    for (const e of filtered) {
+      const proj = e['Project'] || '(No Project)';
+      projectTotals[proj] = (projectTotals[proj] || 0) + durationToHours(e['Duration']);
+    }
+    const grandTotal = Object.values(projectTotals).reduce((a, b) => a + b, 0);
+
+    // ── Render day blocks ──
+    let html = '';
+    for (const date of Object.keys(grouped).sort()) {
+      const dayEntries = filtered.filter(e => e['Start date'] === date);
+      const dayTotal   = roundQ(dayEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+
+      html += `<div class="day-block">
+        <div class="day-header">
+          <span class="day-label">${escHtml(fmtDate(date))}</span>
+          <span class="day-total">${fmtH(dayTotal)}</span>
+        </div>
+        <div class="day-body">`;
+
+      for (const proj of Object.keys(grouped[date]).sort()) {
+        const projEntries = Object.values(grouped[date][proj]).flat();
+        const projTotal   = roundQ(projEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+        const projCopyId  = storeText(fmtH(projTotal));
+
+        html += `<div class="project-block">
+          <div class="project-header">
+            <span class="project-name">${escHtml(proj)}</span>
+            <span class="project-total">
+              ${escHtml(fmtH(projTotal))}
+              <button class="btn-copy btn-copy-proj" onclick="copyStored(this,${projCopyId})">Copy</button>
+            </span>
+          </div>`;
+
+        for (const tagKey of Object.keys(grouped[date][proj]).sort()) {
+          const tagEntries    = grouped[date][proj][tagKey];
+          const roundedHours  = roundQ(tagEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+
+          // noteMap preserves insertion order and tracks raw hours per description
+          const noteMap = new Map();
+          for (const e of tagEntries) {
+            const desc = (e['Description'] || '').trim();
+            if (!desc) continue;
+            noteMap.set(desc, (noteMap.get(desc) || 0) + durationToHours(e['Duration']));
+          }
+          const notes = [...noteMap.keys()];
+
+          const notesCopyText = notes.join('\n');
+          const notesCopyId   = storeText(notesCopyText);
+
+          let notesInner = '';
+          if (notes.length === 0) {
+            notesInner = `<div class="notes-empty">No description</div>`;
+          } else if (notesFormat === 'list') {
+            const items = [...noteMap.entries()].map(([desc, hrs]) => {
+              const noteId = storeText(desc);
+              return `<div class="note-item">
+                <span class="note-bullet">•</span>
+                <span class="note-text">${escHtml(desc)}</span>
+                <span class="note-hours-inline">${escHtml(fmtH(roundQ(hrs)))}</span>
+                <button class="btn-copy btn-copy-note" onclick="copyStored(this,${noteId})">Copy</button>
+              </div>`;
+            }).join('');
+            notesInner = `<div class="notes-list">${items}</div>`;
+          } else {
+            notesInner = `<div class="notes-paragraph">${escHtml(notes.join(', '))}</div>`;
+          }
+
+          const tagDisplay = tagKey
+            ? tagKey.split(', ').map(t => `<span class="tag-badge">${escHtml(t)}</span>`).join(' ')
+            : `<span class="tag-badge untagged">Untagged</span>`;
+
+          html += `<div class="tag-section">
+            <div class="tag-row">
+              <div>${tagDisplay}</div>
+              <div class="tag-hours">${fmtH(roundedHours)}</div>
+            </div>
+            <div class="notes-row">
+              <div class="notes-content">${notesInner}</div>
+              ${notes.length ? `<button class="btn-copy" onclick="copyStored(this,${notesCopyId})">${notesFormat === 'list' ? 'Copy all' : 'Copy notes'}</button>` : ''}
+            </div>
+          </div>`;
+        }
+
+        html += `</div>`; // project-block
+      }
+
+      html += `</div></div>`; // day-body, day-block
+    }
+
+    // ── Summary table ──
+    html += `<div class="summary-block">
+      <div class="summary-header">Project Summary</div>
+      <table class="summary-table"><tbody>`;
+
+    for (const proj of Object.keys(projectTotals).sort()) {
+      const hrs      = fmtH(roundQ(projectTotals[proj]));
+      const copyId   = storeText(hrs);
+      html += `<tr>
+        <td>${escHtml(proj)}</td>
+        <td class="col-hours">
+          <span class="col-hours-inner">
+            ${escHtml(hrs)}
+            <button class="btn-copy" onclick="copyStored(this,${copyId})">Copy</button>
+          </span>
+        </td>
+      </tr>`;
+    }
+
+    const grandHrs    = fmtH(roundQ(grandTotal));
+    const grandCopyId = storeText(grandHrs);
+    html += `</tbody><tfoot>
+      <tr class="summary-footer">
+        <td>Total</td>
+        <td class="col-hours">
+          <span class="col-hours-inner">
+            ${escHtml(grandHrs)}
+            <button class="btn-copy" onclick="copyStored(this,${grandCopyId})">Copy</button>
+          </span>
+        </td>
+      </tr>
+    </tfoot></table></div>`;
+
+    // Meta
+    const metaParts = [];
+    if (dateFrom || dateTo) {
+      const fmt = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      metaParts.push(`${dateFrom ? fmt(dateFrom) : '—'} – ${dateTo ? fmt(dateTo) : '—'}`);
+    }
+    metaParts.push(`${filtered.length} entries · ${fmtH(roundQ(grandTotal))} total`);
+
+    document.getElementById('report-meta').textContent = metaParts.join('  ·  ');
+    document.getElementById('report-body').innerHTML = html;
+    document.getElementById('report-output').style.display = 'block';
+  }
+
+  // ── Clipboard ────────────────────────────────────────────────────────────
+
+  function copyStored(btn, id) {
+    const text = _copyStore[id] ?? '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => fallbackCopy(text, btn));
+    } else {
+      fallbackCopy(text, btn);
+    }
+  }
+
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); flashCopied(btn); } catch {}
+    document.body.removeChild(ta);
+  }
+
+  function flashCopied(btn) {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = btn.dataset.label || (btn.closest('.notes-row') ? 'Copy notes' : 'Copy');
+      btn.classList.remove('copied');
+    }, 1600);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function renderEmpty(msg) {
+    document.getElementById('report-body').innerHTML = `<div class="state-msg">${escHtml(msg)}</div>`;
+    document.getElementById('report-meta').textContent = '';
+    document.getElementById('report-output').style.display = 'block';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideError() { document.getElementById('error-msg').style.display = 'none'; }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function escAttr(str) { return escHtml(str); }
+</script>
+</body>
+</html>

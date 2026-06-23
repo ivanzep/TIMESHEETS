@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toggl Report Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #e57cd8;
+      --accent-dark: #c45fb8;
+      --bg: #f7f7f8;
+      --card: #ffffff;
+      --border: #e2e2e6;
+      --text: #1a1a2e;
+      --muted: #6b6b80;
+      --tag-bg: #f0eaff;
+      --tag-text: #6b35c9;
+      --date-bg: #1a1a2e;
+      --date-text: #ffffff;
+      --project-bg: #f7f3ff;
+      --project-border: #d4c5f9;
+      --total-bg: #fafafa;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      background: var(--date-bg);
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .app-header h1 { font-size: 18px; font-weight: 600; letter-spacing: .3px; }
+    .app-header span { color: var(--accent); font-size: 22px; }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 28px 24px 60px; }
+
+    /* ── Upload ── */
+    .upload-zone {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      background: var(--card);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      display: block;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: #fdf7ff;
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .upload-icon { font-size: 40px; margin-bottom: 12px; }
+    .upload-zone p { color: var(--muted); font-size: 15px; }
+    .upload-zone strong { color: var(--text); }
+    .btn-upload {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 9px 22px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: background .15s;
+    }
+    .btn-upload:hover { background: var(--accent-dark); }
+    .file-name { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+    /* ── Filters ── */
+    #filters-panel {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 24px;
+      margin-top: 20px;
+      box-shadow: var(--shadow);
+    }
+    .filters-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+    .filters-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .filters-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-top: 18px;
+    }
+    @media (max-width: 680px) {
+      .filters-grid { grid-template-columns: 1fr; }
+      .filters-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .filter-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+    .filter-group input[type="date"],
+    .filter-group input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+    }
+    .filter-group input[type="date"]:focus,
+    .filter-group input[type="text"]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    .check-list {
+      max-height: 140px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 10px;
+      background: #fff;
+    }
+    .check-list label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      padding: 3px 0;
+      cursor: pointer;
+    }
+    .check-list label:hover { color: var(--accent-dark); }
+    .check-list input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+    .toggle-all {
+      font-size: 11px;
+      color: var(--accent-dark);
+      cursor: pointer;
+      margin-bottom: 6px;
+      display: inline-block;
+      background: none;
+      border: none;
+      padding: 0;
+      font-weight: 600;
+    }
+    .toggle-all:hover { text-decoration: underline; }
+
+    .notes-format-group { display: flex; flex-direction: column; gap: 8px; }
+    .notes-format-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .notes-format-group input[type="radio"] { accent-color: var(--accent); }
+
+    .filters-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-primary {
+      padding: 9px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-secondary {
+      padding: 9px 18px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Copy button ── */
+    .btn-copy {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .btn-copy.copied { border-color: #48c78e; color: #257953; background: #f0fff8; }
+
+    /* ── Report ── */
+    #report-output {
+      display: none;
+      margin-top: 28px;
+    }
+    .report-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .report-title { font-size: 18px; font-weight: 700; }
+    .report-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .btn-print {
+      padding: 8px 18px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color .15s;
+    }
+    .btn-print:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Day card ── */
+    .day-block { margin-bottom: 24px; }
+    .day-header {
+      background: var(--date-bg);
+      color: var(--date-text);
+      padding: 10px 18px;
+      border-radius: 9px 9px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .day-label { font-size: 15px; font-weight: 700; }
+    .day-total { font-size: 13px; color: #ccc; }
+    .day-collapse-btn {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 0 0 14px;
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+    .day-block.collapsed .day-collapse-btn { transform: rotate(-90deg); }
+    .day-block.collapsed .day-header { border-radius: 9px; }
+    .day-block.collapsed .day-body { display: none; }
+    .day-body {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 9px 9px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Project row ── */
+    .project-block { border-top: 1px solid var(--border); }
+    .project-block:first-child { border-top: none; }
+    .project-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 18px;
+      background: var(--project-bg);
+      border-left: 3px solid var(--project-border);
+    }
+    .project-name { font-weight: 700; font-size: 14px; color: var(--text); }
+    .project-total { font-size: 13px; font-weight: 700; color: var(--accent-dark); display: flex; align-items: center; gap: 8px; }
+    .btn-copy-proj { background: var(--project-bg); }
+
+    /* ── Tag section ── */
+    .tag-section { padding: 12px 18px 14px 21px; border-top: 1px solid #f0f0f4; }
+    .tag-section:first-of-type { border-top: none; }
+    .tag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .tag-badge.untagged { background: #f0f0f4; color: var(--muted); }
+    .tag-hours {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tag-section-sub {
+      padding-left: 36px;
+      background: #fdfcff;
+      border-top: 1px dashed #e8e4f4;
+    }
+    .tag-section-sub .tag-badge { font-size: 10px; padding: 2px 7px; opacity: 0.8; }
+    .notes-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .notes-content { flex: 1; min-width: 0; }
+    .notes-paragraph {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.6;
+    }
+    .notes-list { font-size: 13px; color: #444; }
+    .note-item {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 2px 0;
+      line-height: 1.7;
+    }
+    .note-bullet { color: #bbb; flex-shrink: 0; }
+    .note-text { flex: 1; min-width: 0; }
+    .note-hours-inline {
+      color: #c0c0cc;
+      font-size: 11px;
+      font-weight: 400;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .notes-empty { font-size: 12px; color: #bbb; font-style: italic; }
+
+    /* ── Summary ── */
+    .summary-block {
+      margin-top: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .summary-header {
+      background: var(--total-bg);
+      padding: 12px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-table { width: 100%; border-collapse: collapse; }
+    .summary-table td { padding: 9px 18px; font-size: 13px; border-bottom: 1px solid #f5f5f7; vertical-align: middle; }
+    .summary-table tr:last-child td { border-bottom: none; }
+    .summary-table .col-hours {
+      text-align: right;
+      font-weight: 700;
+      color: var(--accent-dark);
+      white-space: nowrap;
+    }
+    .col-hours-inner { display: inline-flex; align-items: center; gap: 8px; }
+    .summary-footer td {
+      font-weight: 700;
+      font-size: 14px;
+      background: var(--total-bg);
+      border-top: 2px solid var(--border);
+    }
+    .summary-footer .col-hours { font-size: 16px; }
+
+    /* ── Empty/error states ── */
+    .state-msg {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .error-msg {
+      background: #fff3f3;
+      border: 1px solid #fbc4c4;
+      color: #c0392b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; }
+      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print, .btn-copy, .day-collapse-btn { display: none !important; }
+      .day-block.collapsed .day-body { display: block !important; }
+      .day-header { border-radius: 9px 9px 0 0 !important; cursor: default; }
+      #report-output { display: block !important; }
+      .day-block { break-inside: avoid; margin-bottom: 18px; }
+      .project-block { break-inside: avoid; }
+      .summary-block { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <span>⏱</span>
+  <h1>Toggl Report Generator</h1>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <section id="upload-section">
+    <label class="upload-zone" id="drop-zone">
+      <input type="file" id="csv-input" accept=".csv,text/csv,text/plain,text/comma-separated-values">
+      <div class="upload-icon">📄</div>
+      <p><strong>Tap or drop your Toggl CSV export here</strong></p>
+      <p style="font-size:12px; margin-top:4px;">Desktop app · Web export (Detailed report)</p>
+      <span class="btn-upload">Browse file</span>
+      <div class="file-name" id="file-name-display"></div>
+    </label>
+    <div class="error-msg" id="error-msg" style="display:none"></div>
+  </section>
+
+  <!-- Filters -->
+  <section id="filters-panel">
+    <div class="filters-title">Filters &amp; Options</div>
+    <div class="filters-grid">
+
+      <div class="filter-group">
+        <label for="date-from">Date from</label>
+        <input type="date" id="date-from">
+      </div>
+
+      <div class="filter-group">
+        <label for="date-to">Date to</label>
+        <input type="date" id="date-to">
+      </div>
+
+      <div class="filter-group">
+        <label>Notes format</label>
+        <div class="notes-format-group">
+          <label><input type="radio" name="notes-format" value="paragraph" checked> Paragraph (comma-separated)</label>
+          <label><input type="radio" name="notes-format" value="list"> Bullet list</label>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="filters-grid-2">
+
+      <div class="filter-group">
+        <label>Projects</label>
+        <button class="toggle-all" id="toggle-projects-btn" onclick="toggleAllProjects()">Deselect all</button>
+        <div class="check-list" id="project-list"></div>
+      </div>
+
+      <div class="filter-group">
+        <label>Tags</label>
+        <button class="toggle-all" id="toggle-tags-btn" onclick="toggleAllTags()">Deselect all</button>
+        <div class="check-list" id="tag-list"></div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:18px;">
+      <div class="filter-group">
+        <label for="qualifier-tags">Qualifier tags — shown as sub-categories (comma-separated)</label>
+        <input type="text" id="qualifier-tags" placeholder="e.g. MEETING, OFFICE, CALL">
+      </div>
+    </div>
+
+    <div class="filters-actions">
+      <button class="btn-primary" onclick="generateReport()">Generate Report</button>
+      <button class="btn-secondary" onclick="resetAll()">Reset</button>
+    </div>
+  </section>
+
+  <!-- Report -->
+  <section id="report-output">
+    <div class="report-header-row">
+      <div>
+        <div class="report-title">Timesheet Report</div>
+        <div class="report-meta" id="report-meta"></div>
+      </div>
+      <button class="btn-print" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div id="report-body"></div>
+  </section>
+
+</div>
+
+<script>
+/**
+ * toggl-report-v0.1.html
+ * Last updated: 2026-06-23 02:27
+ *
+ * Version log:
+ *  v0.1  2026-06-23  Collapse/expand button per day block
+ *                    Day-total rounding fix (bottom-up sum of rounded sub-totals)
+ *                    Qualifier tag sub-categories (MEETING / OFFICE / CALL indent
+ *                    under primary tag group; configurable, persisted to localStorage)
+ *                    Hours copy button added to every tag section
+ *                    Extracted buildNotesInner() to share paragraph / list rendering
+ *        ──────────  Desktop Toggl app CSV compatibility (detectFormat() inspects
+ *                    headers; supports both web-export and desktop-export columns)
+ *                    File info badge shows export type (desktop export / web export)
+ *        ──────────  Per-note hours (greyed) in bullet-list mode
+ *                    Individual copy button per bullet note
+ *                    Copy button on project-total and each tag-section hours
+ *        ──────────  Tag filter (checkbox list, toggle-all, persists selection)
+ *                    Copy notes button per tag section
+ *                    iOS Safari file-import fix (input fills label, dual events)
+ *        ──────────  Initial release: Toggl CSV → grouped report
+ *                    Grouping: date → project → tag key
+ *                    Hour rounding to nearest 0.25 h
+ *                    Date-range filter, project filter, notes format toggle
+ *                    (paragraph or bullet list)
+ */
+
+  let allEntries = [];
+  let allProjects = [];
+  let allTags = [];
+
+  // copy store — reset each generateReport() call
+  let _copyStore = {};
+  let _copyId = 0;
+  function storeText(text) { const id = _copyId++; _copyStore[id] = text; return id; }
+
+  // ── CSV Parsing ──────────────────────────────────────────────────────────
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQ = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const n = text[i + 1];
+
+      if (c === '"') {
+        if (inQ && n === '"') { field += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        row.push(field); field = '';
+      } else if ((c === '\n' || c === '\r') && !inQ) {
+        if (c === '\r' && n === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(f => f.trim() !== '')) rows.push(row);
+        row = [];
+      } else {
+        field += c;
+      }
+    }
+    if (field || row.length) { row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => {
+      const entry = {};
+      headers.forEach((h, i) => { entry[h] = (r[i] || '').trim(); });
+      return entry;
+    });
+  }
+
+  function durationToHours(dur) {
+    if (!dur || dur.startsWith('-')) return 0;
+    const parts = dur.split(':').map(Number);
+    if (parts.length < 2) return 0;
+    return (parts[0] || 0) + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600;
+  }
+
+  function roundQ(h) { return Math.round(h * 4) / 4; }
+
+  function fmtH(h) {
+    const v = parseFloat(h.toFixed(2));
+    return v % 1 === 0 ? v.toFixed(0) + 'h' : v + 'h';
+  }
+
+  function fmtDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function normTags(raw) {
+    if (!raw) return '';
+    return raw.split(',').map(t => t.trim()).filter(Boolean).sort().join(', ');
+  }
+
+  function splitTags(raw) {
+    if (!raw) return [];
+    return raw.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  // ── File Handling ────────────────────────────────────────────────────────
+
+  const dropZone = document.getElementById('drop-zone');
+  const csvInput = document.getElementById('csv-input');
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+  function onFileSelected() { if (csvInput.files && csvInput.files[0]) loadFile(csvInput.files[0]); }
+  csvInput.addEventListener('change', onFileSelected);
+  csvInput.addEventListener('input', onFileSelected);
+
+  function loadFile(file) {
+    const ok = file.name.endsWith('.csv') || file.type.includes('csv') || file.type.includes('text');
+    if (!ok) { showError('Please upload a .csv file exported from Toggl Track.'); return; }
+    hideError();
+    const reader = new FileReader();
+    reader.onload = e => processRawCSV(e.target.result, file.name);
+    reader.readAsText(file);
+  }
+
+  function detectFormat(entry) {
+    const keys = Object.keys(entry);
+    if (!keys.includes('Start date') || !keys.includes('Duration') || !keys.includes('Project')) return null;
+    if (keys.includes('User')) return 'web';       // Toggl web detailed export
+    if (keys.includes('Email')) return 'desktop';  // Toggl desktop app export
+    return 'generic';
+  }
+
+  function processRawCSV(text, fileName) {
+    const entries = parseCSV(text);
+
+    const fmt = entries.length ? detectFormat(entries[0]) : null;
+    if (!fmt) {
+      showError(
+        'Unrecognised CSV format. Export from:\n' +
+        '• Desktop app: File → Export data → Export time entries as CSV\n' +
+        '• Web: Reports → Detailed → Export CSV'
+      );
+      return;
+    }
+
+    allEntries = entries.filter(e => e['Duration'] && !e['Duration'].startsWith('-'));
+    if (!allEntries.length) { showError('No valid time entries found in the file.'); return; }
+
+    const label = fmt === 'web' ? 'web export' : fmt === 'desktop' ? 'desktop export' : 'export';
+    document.getElementById('file-name-display').textContent = `✓ ${fileName} — ${allEntries.length} entries (${label})`;
+
+    // Projects
+    allProjects = [...new Set(allEntries.map(e => e['Project'] || '(No Project)'))].sort();
+    buildProjectCheckboxes();
+
+    // Tags — collect individual tags across all entries
+    const tagSet = new Set();
+    for (const e of allEntries) splitTags(e['Tags']).forEach(t => tagSet.add(t));
+    allTags = [...tagSet].sort();
+    buildTagCheckboxes();
+
+    // Date range
+    const dates = allEntries.map(e => e['Start date']).sort();
+    document.getElementById('date-from').value = dates[0];
+    document.getElementById('date-to').value = dates[dates.length - 1];
+
+    document.getElementById('filters-panel').style.display = 'block';
+    document.getElementById('report-output').style.display = 'none';
+
+    generateReport();
+  }
+
+  // ── Filters UI ───────────────────────────────────────────────────────────
+
+  function buildProjectCheckboxes() {
+    document.getElementById('project-list').innerHTML = allProjects.map(p => `
+      <label><input type="checkbox" value="${escAttr(p)}" checked> ${escHtml(p)}</label>`).join('');
+  }
+
+  function buildTagCheckboxes() {
+    const list = document.getElementById('tag-list');
+    if (!allTags.length) {
+      list.innerHTML = '<span style="font-size:12px;color:#bbb;padding:4px 2px;display:block">No tags in data</span>';
+      return;
+    }
+    list.innerHTML = allTags.map(t => `
+      <label><input type="checkbox" value="${escAttr(t)}" checked> ${escHtml(t)}</label>`).join('');
+  }
+
+  function toggleAllProjects() {
+    const boxes = [...document.querySelectorAll('#project-list input[type="checkbox"]')];
+    const allChecked = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    document.getElementById('toggle-projects-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
+  }
+
+  function toggleAllTags() {
+    const boxes = [...document.querySelectorAll('#tag-list input[type="checkbox"]')];
+    const allChecked = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    document.getElementById('toggle-tags-btn').textContent = allChecked ? 'Select all' : 'Deselect all';
+  }
+
+  function selectedProjects() {
+    return [...document.querySelectorAll('#project-list input[type="checkbox"]')]
+      .filter(b => b.checked).map(b => b.value);
+  }
+
+  function selectedTags() {
+    return new Set([...document.querySelectorAll('#tag-list input[type="checkbox"]')]
+      .filter(b => b.checked).map(b => b.value));
+  }
+
+  function resetAll() {
+    document.querySelectorAll('#project-list input[type="checkbox"], #tag-list input[type="checkbox"]')
+      .forEach(b => b.checked = true);
+    document.getElementById('toggle-projects-btn').textContent = 'Deselect all';
+    document.getElementById('toggle-tags-btn').textContent = 'Deselect all';
+    const dates = allEntries.map(e => e['Start date']).sort();
+    document.getElementById('date-from').value = dates[0];
+    document.getElementById('date-to').value = dates[dates.length - 1];
+    document.querySelector('input[name="notes-format"][value="paragraph"]').checked = true;
+    generateReport();
+  }
+
+  // ── Report Generation ────────────────────────────────────────────────────
+
+  function buildNotesInner(noteMap, notes, notesFormat) {
+    if (notes.length === 0) return '<div class="notes-empty">No description</div>';
+    if (notesFormat === 'list') {
+      const items = [...noteMap.entries()].map(([desc, hrs]) => {
+        const noteId = storeText(desc);
+        return `<div class="note-item">
+          <span class="note-bullet">•</span>
+          <span class="note-text">${escHtml(desc)}</span>
+          <span class="note-hours-inline">${escHtml(fmtH(roundQ(hrs)))}</span>
+          <button class="btn-copy btn-copy-note" onclick="copyStored(this,${noteId})">Copy</button>
+        </div>`;
+      }).join('');
+      return `<div class="notes-list">${items}</div>`;
+    }
+    return `<div class="notes-paragraph">${escHtml(notes.join(', '))}</div>`;
+  }
+
+  function generateReport() {
+    _copyStore = {}; _copyId = 0;
+
+    const dateFrom    = document.getElementById('date-from').value;
+    const dateTo      = document.getElementById('date-to').value;
+    const projects    = new Set(selectedProjects());
+    const tags        = selectedTags();
+    const notesFormat = document.querySelector('input[name="notes-format"]:checked').value;
+    const hasTagFilter = allTags.length > 0;
+
+    // Qualifier tags — entries with these tags become sub-sections under primary tags
+    const qualRaw = (document.getElementById('qualifier-tags').value || '').trim();
+    const qualifierSet = new Set(
+      qualRaw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean)
+    );
+
+    if (!projects.size) { renderEmpty('No projects selected.'); return; }
+
+    // Filter entries
+    const filtered = allEntries.filter(e => {
+      const d    = e['Start date'];
+      const proj = e['Project'] || '(No Project)';
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo   && d > dateTo)   return false;
+      if (!projects.has(proj))       return false;
+      if (hasTagFilter) {
+        const entryTags = splitTags(e['Tags']);
+        if (entryTags.length > 0 && !entryTags.some(t => tags.has(t))) return false;
+      }
+      return true;
+    });
+
+    if (!filtered.length) { renderEmpty('No entries match the current filters.'); return; }
+
+    // Group: date → project → primaryTagKey → { main: [], subs: { qualKey: [] } }
+    const grouped = {};
+    for (const e of filtered) {
+      const date  = e['Start date'];
+      const proj  = e['Project'] || '(No Project)';
+      const eTags = splitTags(e['Tags']);
+      const primaryTags = qualifierSet.size > 0 ? eTags.filter(t => !qualifierSet.has(t.toUpperCase())) : eTags;
+      const qualTags    = qualifierSet.size > 0 ? eTags.filter(t =>  qualifierSet.has(t.toUpperCase())) : [];
+
+      // If entry has primary tags use those as key; otherwise fall back to full tag key
+      const primaryKey = primaryTags.length > 0
+        ? [...primaryTags].sort().join(', ')
+        : normTags(e['Tags']);
+
+      if (!grouped[date])                   grouped[date] = {};
+      if (!grouped[date][proj])             grouped[date][proj] = {};
+      if (!grouped[date][proj][primaryKey]) grouped[date][proj][primaryKey] = { main: [], subs: {} };
+
+      if (primaryTags.length > 0 && qualTags.length > 0) {
+        // Has both primary and qualifier tags — place as sub-section
+        const qualKey = [...qualTags].sort().join(', ');
+        if (!grouped[date][proj][primaryKey].subs[qualKey]) grouped[date][proj][primaryKey].subs[qualKey] = [];
+        grouped[date][proj][primaryKey].subs[qualKey].push(e);
+      } else {
+        grouped[date][proj][primaryKey].main.push(e);
+      }
+    }
+
+    // Project totals (raw) for summary table
+    const projectTotals = {};
+    for (const e of filtered) {
+      const proj = e['Project'] || '(No Project)';
+      projectTotals[proj] = (projectTotals[proj] || 0) + durationToHours(e['Duration']);
+    }
+    const grandTotal = Object.values(projectTotals).reduce((a, b) => a + b, 0);
+
+    // ── Render day blocks — bottom-up rounding so visible numbers add up ──
+    let html = '';
+    for (const date of Object.keys(grouped).sort()) {
+      let dayTotal = 0;
+      let dayHtml  = '';
+
+      for (const proj of Object.keys(grouped[date]).sort()) {
+        let projTotal = 0;
+        let projInner = '';
+
+        for (const primaryKey of Object.keys(grouped[date][proj]).sort()) {
+          const group = grouped[date][proj][primaryKey];
+          const allGroupEntries = [...group.main, ...Object.values(group.subs).flat()];
+          const groupHours = roundQ(allGroupEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+          projTotal += groupHours;
+
+          const tagHrsCopyId = storeText(fmtH(groupHours));
+
+          const tagDisplay = primaryKey
+            ? primaryKey.split(', ').map(t => `<span class="tag-badge">${escHtml(t)}</span>`).join(' ')
+            : `<span class="tag-badge untagged">Untagged</span>`;
+
+          projInner += `<div class="tag-section">
+            <div class="tag-row">
+              <div>${tagDisplay}</div>
+              <div class="tag-hours">${fmtH(groupHours)}<button class="btn-copy btn-copy-tag-hrs" onclick="copyStored(this,${tagHrsCopyId})">Copy</button></div>
+            </div>`;
+
+          // Main entries notes (only if there are main entries)
+          if (group.main.length > 0) {
+            const noteMap = new Map();
+            for (const e of group.main) {
+              const desc = (e['Description'] || '').trim();
+              if (!desc) continue;
+              noteMap.set(desc, (noteMap.get(desc) || 0) + durationToHours(e['Duration']));
+            }
+            const notes = [...noteMap.keys()];
+            const notesCopyId = storeText(notes.join('\n'));
+            projInner += `<div class="notes-row">
+              <div class="notes-content">${buildNotesInner(noteMap, notes, notesFormat)}</div>
+              ${notes.length ? `<button class="btn-copy" onclick="copyStored(this,${notesCopyId})">${notesFormat === 'list' ? 'Copy all' : 'Copy notes'}</button>` : ''}
+            </div>`;
+          }
+
+          // Sub-sections for qualifier-tagged entries
+          for (const qualKey of Object.keys(group.subs).sort()) {
+            const subEntries = group.subs[qualKey];
+            const subHours   = roundQ(subEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+            const subTagHrsCopyId = storeText(fmtH(subHours));
+
+            const subNoteMap = new Map();
+            for (const e of subEntries) {
+              const desc = (e['Description'] || '').trim();
+              if (!desc) continue;
+              subNoteMap.set(desc, (subNoteMap.get(desc) || 0) + durationToHours(e['Duration']));
+            }
+            const subNotes = [...subNoteMap.keys()];
+            const subNotesCopyId = storeText(subNotes.join('\n'));
+            const subTagDisplay  = qualKey.split(', ')
+              .map(t => `<span class="tag-badge">${escHtml(t)}</span>`).join(' ');
+
+            projInner += `<div class="tag-section tag-section-sub">
+              <div class="tag-row">
+                <div>${subTagDisplay}</div>
+                <div class="tag-hours">${fmtH(subHours)}<button class="btn-copy btn-copy-tag-hrs" onclick="copyStored(this,${subTagHrsCopyId})">Copy</button></div>
+              </div>
+              <div class="notes-row">
+                <div class="notes-content">${buildNotesInner(subNoteMap, subNotes, notesFormat)}</div>
+                ${subNotes.length ? `<button class="btn-copy" onclick="copyStored(this,${subNotesCopyId})">${notesFormat === 'list' ? 'Copy all' : 'Copy notes'}</button>` : ''}
+              </div>
+            </div>`;
+          }
+
+          projInner += `</div>`; // tag-section
+        }
+
+        dayTotal += projTotal;
+        const projCopyId = storeText(fmtH(projTotal));
+
+        dayHtml += `<div class="project-block">
+          <div class="project-header">
+            <span class="project-name">${escHtml(proj)}</span>
+            <span class="project-total">
+              ${escHtml(fmtH(projTotal))}
+              <button class="btn-copy btn-copy-proj" onclick="copyStored(this,${projCopyId})">Copy</button>
+            </span>
+          </div>${projInner}</div>`;
+      }
+
+      html += `<div class="day-block">
+        <div class="day-header" onclick="toggleDay(this)">
+          <span class="day-label">${escHtml(fmtDate(date))}</span>
+          <span class="day-total">${fmtH(dayTotal)}</span>
+          <button class="day-collapse-btn" aria-label="Collapse day">▼</button>
+        </div>
+        <div class="day-body">${dayHtml}</div>
+      </div>`;
+    }
+
+    // ── Summary table ──
+    html += `<div class="summary-block">
+      <div class="summary-header">Project Summary</div>
+      <table class="summary-table"><tbody>`;
+
+    for (const proj of Object.keys(projectTotals).sort()) {
+      const hrs    = fmtH(roundQ(projectTotals[proj]));
+      const copyId = storeText(hrs);
+      html += `<tr>
+        <td>${escHtml(proj)}</td>
+        <td class="col-hours">
+          <span class="col-hours-inner">
+            ${escHtml(hrs)}
+            <button class="btn-copy" onclick="copyStored(this,${copyId})">Copy</button>
+          </span>
+        </td>
+      </tr>`;
+    }
+
+    const grandHrs    = fmtH(roundQ(grandTotal));
+    const grandCopyId = storeText(grandHrs);
+    html += `</tbody><tfoot>
+      <tr class="summary-footer">
+        <td>Total</td>
+        <td class="col-hours">
+          <span class="col-hours-inner">
+            ${escHtml(grandHrs)}
+            <button class="btn-copy" onclick="copyStored(this,${grandCopyId})">Copy</button>
+          </span>
+        </td>
+      </tr>
+    </tfoot></table></div>`;
+
+    // Meta
+    const metaParts = [];
+    if (dateFrom || dateTo) {
+      const fmt = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      metaParts.push(`${dateFrom ? fmt(dateFrom) : '—'} – ${dateTo ? fmt(dateTo) : '—'}`);
+    }
+    metaParts.push(`${filtered.length} entries · ${fmtH(roundQ(grandTotal))} total`);
+
+    document.getElementById('report-meta').textContent = metaParts.join('  ·  ');
+    document.getElementById('report-body').innerHTML = html;
+    document.getElementById('report-output').style.display = 'block';
+  }
+
+  // Persist qualifier tags across page loads
+  (function() {
+    const el = document.getElementById('qualifier-tags');
+    const saved = localStorage.getItem('qualifierTags');
+    el.value = saved !== null ? saved : 'MEETING, OFFICE, CALL';
+    el.addEventListener('change', () => localStorage.setItem('qualifierTags', el.value));
+  })();
+
+  // ── Day collapse ─────────────────────────────────────────────────────────
+
+  function toggleDay(header) {
+    header.closest('.day-block').classList.toggle('collapsed');
+  }
+
+  // ── Clipboard ────────────────────────────────────────────────────────────
+
+  function copyStored(btn, id) {
+    const text = _copyStore[id] ?? '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => fallbackCopy(text, btn));
+    } else {
+      fallbackCopy(text, btn);
+    }
+  }
+
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); flashCopied(btn); } catch {}
+    document.body.removeChild(ta);
+  }
+
+  function flashCopied(btn) {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = btn.dataset.label || (btn.closest('.notes-row') ? 'Copy notes' : 'Copy');
+      btn.classList.remove('copied');
+    }, 1600);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function renderEmpty(msg) {
+    document.getElementById('report-body').innerHTML = `<div class="state-msg">${escHtml(msg)}</div>`;
+    document.getElementById('report-meta').textContent = '';
+    document.getElementById('report-output').style.display = 'block';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideError() { document.getElementById('error-msg').style.display = 'none'; }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function escAttr(str) { return escHtml(str); }
+</script>
+</body>
+</html>

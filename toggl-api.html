@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toggl Live Report</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #e57cd8;
+      --accent-dark: #c45fb8;
+      --bg: #f7f7f8;
+      --card: #ffffff;
+      --border: #e2e2e6;
+      --text: #1a1a2e;
+      --muted: #6b6b80;
+      --tag-bg: #f0eaff;
+      --tag-text: #6b35c9;
+      --date-bg: #1a1a2e;
+      --date-text: #ffffff;
+      --project-bg: #f7f3ff;
+      --project-border: #d4c5f9;
+      --total-bg: #fafafa;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+      --green: #48c78e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      background: var(--date-bg);
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .app-header-left { display: flex; align-items: center; gap: 12px; }
+    .app-header h1 { font-size: 18px; font-weight: 600; letter-spacing: .3px; }
+    .app-header .icon { color: var(--accent); font-size: 22px; }
+    .badge-live {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
+      background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 20px;
+    }
+    .user-chip {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: #ccc;
+    }
+    .user-chip strong { color: #fff; }
+    .btn-disconnect {
+      font-size: 11px; font-weight: 600; color: #aaa;
+      background: none; border: 1px solid #444; border-radius: 5px;
+      padding: 3px 10px; cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .btn-disconnect:hover { border-color: #888; color: #fff; }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 28px 24px 60px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 15px; font-weight: 700; margin-bottom: 18px;
+    }
+
+    /* ── Connect section ── */
+    .connect-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.7; }
+    .connect-desc a { color: var(--accent-dark); text-decoration: none; }
+    .connect-desc a:hover { text-decoration: underline; }
+    .token-row { display: flex; gap: 10px; align-items: stretch; }
+    .token-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: var(--text);
+      background: #fff;
+      letter-spacing: .5px;
+    }
+    .token-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .token-input::placeholder { font-family: inherit; letter-spacing: 0; color: #bbb; }
+    .token-toggle {
+      padding: 0 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    /* ── Fetch config ── */
+    #fetch-section { display: none; }
+    .fetch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 14px;
+      align-items: end;
+    }
+    @media (max-width: 620px) { .fetch-grid { grid-template-columns: 1fr 1fr; } }
+
+    .field-group label {
+      display: block;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted); margin-bottom: 5px;
+    }
+    .field-group input[type="date"],
+    .field-group select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+    }
+    .field-group input[type="date"]:focus,
+    .field-group select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      padding: 10px 24px;
+      background: var(--accent);
+      color: #fff; border: none; border-radius: 8px;
+      font-weight: 700; font-size: 14px; cursor: pointer;
+      transition: background .15s; white-space: nowrap;
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-secondary {
+      padding: 9px 18px;
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-weight: 600; font-size: 14px; cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Status / progress ── */
+    .status-bar {
+      display: none;
+      background: var(--date-bg);
+      color: #ddd;
+      font-size: 13px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      margin-top: 14px;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-bar.visible { display: flex; }
+    .spinner {
+      width: 16px; height: 16px; flex-shrink: 0;
+      border: 2px solid #555; border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Filters ── */
+    #filters-panel { display: none; margin-bottom: 20px; }
+    .filters-inner {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 24px;
+      box-shadow: var(--shadow);
+    }
+    .filters-title {
+      font-size: 13px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .7px; color: var(--muted); margin-bottom: 18px;
+    }
+    .filters-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 20px; align-items: start;
+    }
+    @media (max-width: 620px) { .filters-grid { grid-template-columns: 1fr; } }
+
+    .filter-group label {
+      display: block; font-size: 12px; font-weight: 600;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+    .check-list {
+      max-height: 140px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: 7px;
+      padding: 8px 10px; background: #fff;
+    }
+    .check-list label {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 13px; font-weight: 400; text-transform: none;
+      letter-spacing: 0; color: var(--text); padding: 3px 0; cursor: pointer;
+    }
+    .check-list label:hover { color: var(--accent-dark); }
+    .check-list input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+    .toggle-all {
+      font-size: 11px; color: var(--accent-dark); cursor: pointer;
+      margin-bottom: 6px; display: inline-block;
+      background: none; border: none; padding: 0; font-weight: 600;
+    }
+    .toggle-all:hover { text-decoration: underline; }
+
+    .notes-format-group { display: flex; flex-direction: column; gap: 8px; }
+    .notes-format-group label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 400; text-transform: none;
+      letter-spacing: 0; color: var(--text); cursor: pointer;
+    }
+    .notes-format-group input[type="radio"] { accent-color: var(--accent); }
+
+    .filters-actions {
+      display: flex; gap: 10px; margin-top: 18px;
+      padding-top: 16px; border-top: 1px solid var(--border);
+    }
+
+    /* ── Report ── */
+    #report-output { display: none; }
+    .report-header-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .report-title { font-size: 18px; font-weight: 700; }
+    .report-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .btn-print {
+      padding: 8px 18px; background: #fff; border: 1px solid var(--border);
+      border-radius: 7px; font-weight: 600; font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; transition: border-color .15s;
+    }
+    .btn-print:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    /* ── Day card ── */
+    .day-block { margin-bottom: 24px; }
+    .day-header {
+      background: var(--date-bg); color: var(--date-text);
+      padding: 10px 18px; border-radius: 9px 9px 0 0;
+      display: flex; align-items: baseline; justify-content: space-between;
+    }
+    .day-label { font-size: 15px; font-weight: 700; }
+    .day-total { font-size: 13px; color: #ccc; }
+    .day-body {
+      background: var(--card); border: 1px solid var(--border);
+      border-top: none; border-radius: 0 0 9px 9px;
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+
+    /* ── Project row ── */
+    .project-block { border-top: 1px solid var(--border); }
+    .project-block:first-child { border-top: none; }
+    .project-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 18px; background: var(--project-bg);
+      border-left: 3px solid var(--project-border);
+    }
+    .project-name { font-weight: 700; font-size: 14px; color: var(--text); }
+    .project-total { font-size: 13px; font-weight: 700; color: var(--accent-dark); display: flex; align-items: center; gap: 8px; }
+    .btn-copy-proj { background: var(--project-bg); }
+
+    /* ── Tag section ── */
+    .tag-section { padding: 12px 18px 14px 21px; border-top: 1px solid #f0f0f4; }
+    .tag-section:first-of-type { border-top: none; }
+    .tag-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .tag-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--tag-bg); color: var(--tag-text);
+      font-size: 11px; font-weight: 700; padding: 3px 9px;
+      border-radius: 20px; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .tag-badge.untagged { background: #f0f0f4; color: var(--muted); }
+    .tag-hours { font-size: 14px; font-weight: 700; color: var(--text); margin-left: auto; }
+    .notes-row { display: flex; align-items: flex-start; gap: 10px; }
+    .notes-content { flex: 1; min-width: 0; }
+    .notes-paragraph { font-size: 13px; color: #444; line-height: 1.6; }
+    .notes-list { font-size: 13px; color: #444; }
+    .note-item { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; line-height: 1.7; }
+    .note-bullet { color: #bbb; flex-shrink: 0; }
+    .note-text { flex: 1; min-width: 0; }
+    .note-hours-inline { color: #c0c0cc; font-size: 11px; font-weight: 400; white-space: nowrap; flex-shrink: 0; }
+    .notes-empty { font-size: 12px; color: #bbb; font-style: italic; }
+
+    /* ── Copy button ── */
+    .btn-copy {
+      flex-shrink: 0; padding: 3px 10px; font-size: 11px; font-weight: 600;
+      background: #fff; border: 1px solid var(--border); border-radius: 5px;
+      color: var(--muted); cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s; white-space: nowrap;
+    }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .btn-copy.copied { border-color: var(--green); color: #257953; background: #f0fff8; }
+
+    /* ── Summary ── */
+    .summary-block {
+      margin-top: 28px; background: var(--card);
+      border: 1px solid var(--border); border-radius: 9px;
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+    .summary-header {
+      background: var(--total-bg); padding: 12px 18px;
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border);
+    }
+    .summary-table { width: 100%; border-collapse: collapse; }
+    .summary-table td { padding: 9px 18px; font-size: 13px; border-bottom: 1px solid #f5f5f7; vertical-align: middle; }
+    .summary-table tr:last-child td { border-bottom: none; }
+    .summary-table .col-hours { text-align: right; font-weight: 700; color: var(--accent-dark); white-space: nowrap; }
+    .col-hours-inner { display: inline-flex; align-items: center; gap: 8px; }
+    .summary-footer td { font-weight: 700; font-size: 14px; background: var(--total-bg); border-top: 2px solid var(--border); }
+    .summary-footer .col-hours { font-size: 16px; }
+
+    /* ── Error / empty ── */
+    .state-msg { padding: 32px; text-align: center; color: var(--muted); font-size: 14px; }
+    .error-msg {
+      background: #fff3f3; border: 1px solid #fbc4c4; color: #c0392b;
+      border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-top: 12px;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; }
+      .app-header, #connect-section, #fetch-section, #filters-panel,
+      .report-header-row .btn-print, .btn-copy { display: none !important; }
+      #report-output { display: block !important; }
+      .day-block { break-inside: avoid; margin-bottom: 18px; }
+      .project-block { break-inside: avoid; }
+      .summary-block { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-left">
+    <span class="icon">⏱</span>
+    <h1>Toggl Live Report</h1>
+    <span class="badge-live">Live</span>
+  </div>
+  <div class="user-chip" id="user-chip" style="display:none">
+    <span>Connected as <strong id="user-name"></strong></span>
+    <button class="btn-disconnect" onclick="disconnect()">Disconnect</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Step 1: Proxy setup (always required) -->
+  <div class="card" id="proxy-section">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <span style="background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.5px;">STEP 1</span>
+      <div class="card-title" style="margin:0;">Proxy Setup</div>
+      <span id="proxy-saved-badge" style="display:none; background:#e8faf2; color:#257953; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; border:1px solid #a8e6c8;">✓ Saved</span>
+    </div>
+
+    <p style="font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:16px;">
+      Toggl's API blocks direct browser requests from any external site (CORS restriction).
+      A free <strong>Cloudflare Worker</strong> acts as a one-line proxy to work around this.
+      Once deployed you only need to do this once.
+    </p>
+
+    <div style="background:#f7f7f8; border:1px solid var(--border); border-radius:9px; padding:16px 18px; margin-bottom:16px; font-size:13px; line-height:1.9;">
+      <strong>Deploy the proxy (≈ 3 minutes, free):</strong>
+      <ol style="margin:8px 0 0 18px; color:var(--text);">
+        <li>Open <a href="https://dash.cloudflare.com" target="_blank" rel="noopener" style="color:var(--accent-dark); font-weight:600;">dash.cloudflare.com</a> → <em>Workers &amp; Pages</em> → <em>Create</em> → <em>Create Worker</em></li>
+        <li>Click <em>Edit code</em>, delete the default code, paste the entire contents of <code>worker.js</code> from this repo</li>
+        <li>Click <em>Deploy</em> — you'll get a URL like <code>https://worker-name.yourname.workers.dev</code></li>
+        <li>Paste that URL in the field below and click <strong>Save</strong></li>
+      </ol>
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:stretch;">
+      <input type="url" id="proxy-input" class="token-input"
+        placeholder="https://worker-name.yourname.workers.dev"
+        style="font-family:inherit; letter-spacing:0;">
+      <button class="btn-primary" onclick="saveProxy()" style="white-space:nowrap;">Save</button>
+      <button class="btn-secondary" onclick="clearProxy()" style="white-space:nowrap;">Clear</button>
+    </div>
+    <div id="proxy-status" style="font-size:12px; color:var(--muted); margin-top:7px; min-height:18px;"></div>
+  </div>
+
+  <!-- Step 2: Connect -->
+  <div class="card" id="connect-section">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <span style="background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.5px;">STEP 2</span>
+      <div class="card-title" style="margin:0;">Connect to Toggl Track</div>
+    </div>
+    <p class="connect-desc">
+      Find your API token at
+      <a href="https://track.toggl.com/profile" target="_blank" rel="noopener">track.toggl.com/profile</a>
+      → scroll to the bottom → <em>API Token</em>.<br>
+      Stored only in this tab's session memory — cleared when you close the tab.
+    </p>
+    <div class="token-row">
+      <input type="password" id="token-input" class="token-input" placeholder="Paste API token here…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="token-toggle" id="token-toggle" onclick="toggleTokenVis()" title="Show/hide token">👁</button>
+      <button class="btn-primary" onclick="connect()">Connect</button>
+    </div>
+    <div class="error-msg" id="connect-error" style="display:none"></div>
+  </div>
+
+  <!-- Step 2: Fetch config -->
+  <div class="card" id="fetch-section">
+    <div class="card-title">Fetch Time Entries</div>
+    <div class="fetch-grid">
+
+      <div class="field-group">
+        <label for="workspace-select">Workspace</label>
+        <select id="workspace-select"></select>
+      </div>
+
+      <div class="field-group">
+        <label for="date-from">From</label>
+        <input type="date" id="date-from">
+      </div>
+
+      <div class="field-group">
+        <label for="date-to">To</label>
+        <input type="date" id="date-to">
+      </div>
+
+    </div>
+    <div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <button class="btn-primary" id="fetch-btn" onclick="fetchAndGenerate()">Fetch &amp; Generate Report</button>
+      <button class="btn-secondary" onclick="resetFilters()">Reset filters</button>
+    </div>
+    <div class="status-bar" id="status-bar">
+      <div class="spinner"></div>
+      <span id="status-text"></span>
+    </div>
+    <div class="error-msg" id="fetch-error" style="display:none"></div>
+  </div>
+
+  <!-- Filters -->
+  <div id="filters-panel">
+    <div class="filters-inner">
+      <div class="filters-title">Filters &amp; Options</div>
+      <div class="filters-grid">
+
+        <div class="filter-group">
+          <label>Projects</label>
+          <button class="toggle-all" id="toggle-projects-btn" onclick="toggleAll('project-list','toggle-projects-btn')">Deselect all</button>
+          <div class="check-list" id="project-list"></div>
+        </div>
+
+        <div class="filter-group">
+          <label>Tags</label>
+          <button class="toggle-all" id="toggle-tags-btn" onclick="toggleAll('tag-list','toggle-tags-btn')">Deselect all</button>
+          <div class="check-list" id="tag-list"></div>
+        </div>
+
+      </div>
+
+      <div class="filter-group" style="margin-top:16px">
+        <label>Notes format</label>
+        <div class="notes-format-group" style="flex-direction:row; gap:20px; margin-top:4px">
+          <label><input type="radio" name="notes-format" value="paragraph" checked> Paragraph (comma-separated)</label>
+          <label><input type="radio" name="notes-format" value="list"> Bullet list</label>
+        </div>
+      </div>
+
+      <div class="filters-actions">
+        <button class="btn-primary" onclick="renderReport()">Apply Filters</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report -->
+  <section id="report-output">
+    <div class="report-header-row">
+      <div>
+        <div class="report-title">Timesheet Report</div>
+        <div class="report-meta" id="report-meta"></div>
+      </div>
+      <button class="btn-print" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div id="report-body"></div>
+  </section>
+
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────────────
+
+  let token     = sessionStorage.getItem('toggl_token') || '';
+  let proxyBase = localStorage.getItem('toggl_proxy')  || '';
+  let allEntries  = [];
+  let allProjects = [];
+  let allTags     = [];
+  let _copyStore  = {};
+  let _copyId     = 0;
+  function storeText(t) { const id = _copyId++; _copyStore[id] = t; return id; }
+
+  // Restore saved proxy / token on load
+  (function init() {
+    if (proxyBase) {
+      document.getElementById('proxy-input').value = proxyBase;
+      document.getElementById('proxy-status').textContent = `Active: ${proxyBase}`;
+      document.getElementById('proxy-saved-badge').style.display = 'inline-flex';
+    }
+    if (token) {
+      document.getElementById('token-input').value = token;
+      tryRestoreSession();
+    }
+  })();
+
+  // ── Proxy helpers ─────────────────────────────────────────────────────────
+
+  function saveProxy() {
+    const val = document.getElementById('proxy-input').value.trim().replace(/\/$/, '');
+    proxyBase = val;
+    if (val) { localStorage.setItem('toggl_proxy', val); } else { localStorage.removeItem('toggl_proxy'); }
+    document.getElementById('proxy-status').textContent = val ? `Active: ${val}` : 'Proxy cleared.';
+    document.getElementById('proxy-saved-badge').style.display = val ? 'inline-flex' : 'none';
+  }
+
+  function clearProxy() {
+    proxyBase = '';
+    localStorage.removeItem('toggl_proxy');
+    document.getElementById('proxy-input').value = '';
+    document.getElementById('proxy-status').textContent = '';
+    document.getElementById('proxy-saved-badge').style.display = 'none';
+  }
+
+  function apiBase() {
+    return proxyBase || 'https://api.track.toggl.com';
+  }
+
+  // ── Auth helpers ─────────────────────────────────────────────────────────
+
+  function authHeader() { return 'Basic ' + btoa(token + ':api_token'); }
+
+  async function togglGet(path) {
+    const r = await fetch(apiBase() + path, {
+      headers: { 'Authorization': authHeader() }
+    });
+    if (r.status === 403 || r.status === 401) throw new Error('auth');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  // ── Connect ──────────────────────────────────────────────────────────────
+
+  async function connect() {
+    const input = document.getElementById('token-input').value.trim().replace(/\s/g, '');
+    if (!input) return;
+    token = input;
+    hideError('connect-error');
+    setStatus('Verifying token…');
+
+    try {
+      const me = await togglGet('/api/v9/me');
+      sessionStorage.setItem('toggl_token', token);
+
+      document.getElementById('user-name').textContent = me.fullname || me.email;
+      document.getElementById('user-chip').style.display = 'flex';
+
+      await loadWorkspaces();
+      showFetchSection();
+    } catch (e) {
+      clearStatus();
+      if (e.message === 'auth') {
+        showError('connect-error', 'Invalid token — check you copied it correctly from your Toggl profile.');
+      } else if (e instanceof TypeError) {
+        showError('connect-error', 'Proxy required — Toggl\'s API blocks all direct browser requests. Complete Step 1 above: deploy worker.js to Cloudflare and paste the URL, then try again.');
+        document.getElementById('proxy-section').scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => document.getElementById('proxy-input').focus(), 400);
+      } else {
+        showError('connect-error', `Connection failed: ${e.message}`);
+      }
+    }
+  }
+
+  async function tryRestoreSession() {
+    try {
+      const me = await togglGet('/api/v9/me');
+      document.getElementById('user-name').textContent = me.fullname || me.email;
+      document.getElementById('user-chip').style.display = 'flex';
+      await loadWorkspaces();
+      showFetchSection();
+    } catch { sessionStorage.removeItem('toggl_token'); token = ''; }
+  }
+
+  function disconnect() {
+    sessionStorage.removeItem('toggl_token');
+    token = ''; allEntries = []; allProjects = []; allTags = [];
+    document.getElementById('token-input').value = '';
+    document.getElementById('user-chip').style.display = 'none';
+    document.getElementById('fetch-section').style.display = 'none';
+    document.getElementById('filters-panel').style.display = 'none';
+    document.getElementById('report-output').style.display = 'none';
+    clearStatus();
+  }
+
+  function toggleTokenVis() {
+    const inp = document.getElementById('token-input');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  // ── Workspaces ───────────────────────────────────────────────────────────
+
+  async function loadWorkspaces() {
+    const workspaces = await togglGet('/api/v9/workspaces');
+    const sel = document.getElementById('workspace-select');
+    sel.innerHTML = workspaces.map(w => `<option value="${w.id}">${escHtml(w.name)}</option>`).join('');
+  }
+
+  function selectedWorkspaceId() { return document.getElementById('workspace-select').value; }
+
+  function showFetchSection() {
+    clearStatus();
+    document.getElementById('fetch-section').style.display = 'block';
+    // Default date range: current month
+    const now = new Date();
+    const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    document.getElementById('date-from').value = `${y}-${m}-01`;
+    document.getElementById('date-to').value   = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+  }
+
+  // ── Fetch & normalise ────────────────────────────────────────────────────
+
+  async function fetchAllProjects(wsId) {
+    let page = 1, all = [];
+    while (true) {
+      const batch = await togglGet(`/api/v9/workspaces/${wsId}/projects?active=both&per_page=200&page=${page}`);
+      if (!Array.isArray(batch) || !batch.length) break;
+      all.push(...batch);
+      if (batch.length < 200) break;
+      page++;
+    }
+    return all;
+  }
+
+  async function fetchAllEntries(wsId, dateFrom, dateTo) {
+    // Toggl returns entries sorted newest-first; we need all within the range.
+    // Use workspace-level search for more reliable pagination.
+    const entries = await togglGet(
+      `/api/v9/me/time_entries?start_date=${dateFrom}&end_date=${dateTo}&meta=true`
+    );
+    return Array.isArray(entries) ? entries : [];
+  }
+
+  function entryLocalDate(isoStr) {
+    const d = new Date(isoStr);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function secsToDuration(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+
+  async function fetchAndGenerate() {
+    const wsId     = selectedWorkspaceId();
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo   = document.getElementById('date-to').value;
+    if (!dateFrom || !dateTo) { showError('fetch-error', 'Select a date range.'); return; }
+
+    hideError('fetch-error');
+    setFetching(true);
+
+    try {
+      setStatus('Fetching projects…');
+      const projects = await fetchAllProjects(wsId);
+
+      setStatus('Fetching tags…');
+      const tags = await togglGet(`/api/v9/workspaces/${wsId}/tags`);
+
+      setStatus('Fetching time entries…');
+      const raw = await fetchAllEntries(wsId, dateFrom, dateTo);
+
+      const projectMap = Object.fromEntries((projects || []).map(p => [p.id, p.name]));
+      const tagMap     = Object.fromEntries((tags     || []).map(t => [t.id, t.name]));
+
+      allEntries = raw
+        .filter(e => typeof e.duration === 'number' && e.duration > 0)
+        .map(e => ({
+          'Project':    projectMap[e.project_id] || '(No Project)',
+          'Description': (e.description || '').trim(),
+          'Start date':  entryLocalDate(e.start),
+          'Duration':    secsToDuration(e.duration),
+          'Tags':        (e.tag_ids || []).map(id => tagMap[id]).filter(Boolean).join(', ')
+        }));
+
+      if (!allEntries.length) {
+        clearStatus(); setFetching(false);
+        showError('fetch-error', 'No completed time entries found for this period.');
+        return;
+      }
+
+      // Build filter lists
+      allProjects = [...new Set(allEntries.map(e => e['Project']))].sort();
+      const tagSet = new Set();
+      allEntries.forEach(e => e['Tags'].split(',').map(t => t.trim()).filter(Boolean).forEach(t => tagSet.add(t)));
+      allTags = [...tagSet].sort();
+
+      buildCheckList('project-list', allProjects);
+      buildCheckList('tag-list', allTags, 'No tags in data');
+      document.getElementById('filters-panel').style.display = 'block';
+
+      renderReport();
+    } catch (e) {
+      if (e.message === 'auth') {
+        showError('fetch-error', 'Session expired — please disconnect and reconnect.');
+      } else if (e instanceof TypeError) {
+        showError('fetch-error', 'Request blocked — CORS or network error. See browser console for details.');
+      } else {
+        showError('fetch-error', `Fetch failed: ${e.message}`);
+      }
+    } finally {
+      clearStatus(); setFetching(false);
+    }
+  }
+
+  // ── Filter UI ────────────────────────────────────────────────────────────
+
+  function buildCheckList(listId, items, emptyMsg) {
+    const el = document.getElementById(listId);
+    if (!items.length) {
+      el.innerHTML = `<span style="font-size:12px;color:#bbb;padding:4px 2px;display:block">${emptyMsg || 'None'}</span>`;
+      return;
+    }
+    el.innerHTML = items.map(v => `<label><input type="checkbox" value="${escAttr(v)}" checked> ${escHtml(v)}</label>`).join('');
+  }
+
+  function toggleAll(listId, btnId) {
+    const boxes = [...document.querySelectorAll(`#${listId} input[type="checkbox"]`)];
+    const allChecked = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    document.getElementById(btnId).textContent = allChecked ? 'Select all' : 'Deselect all';
+  }
+
+  function getChecked(listId) {
+    return new Set([...document.querySelectorAll(`#${listId} input[type="checkbox"]`)]
+      .filter(b => b.checked).map(b => b.value));
+  }
+
+  function resetFilters() {
+    document.querySelectorAll('#project-list input, #tag-list input').forEach(b => b.checked = true);
+    ['toggle-projects-btn','toggle-tags-btn'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = 'Deselect all';
+    });
+    document.querySelector('input[name="notes-format"][value="paragraph"]').checked = true;
+    renderReport();
+  }
+
+  // ── Report rendering ─────────────────────────────────────────────────────
+
+  function renderReport() {
+    _copyStore = {}; _copyId = 0;
+
+    const projects     = getChecked('project-list');
+    const tags         = getChecked('tag-list');
+    const notesFormat  = document.querySelector('input[name="notes-format"]:checked').value;
+    const hasTagFilter = allTags.length > 0;
+
+    if (!projects.size) { showEmpty('No projects selected.'); return; }
+
+    const filtered = allEntries.filter(e => {
+      if (!projects.has(e['Project'])) return false;
+      if (hasTagFilter) {
+        const et = e['Tags'].split(',').map(t => t.trim()).filter(Boolean);
+        if (et.length && !et.some(t => tags.has(t))) return false;
+      }
+      return true;
+    });
+
+    if (!filtered.length) { showEmpty('No entries match the current filters.'); return; }
+
+    // Group: date → project → tagKey → entries
+    const grouped = {};
+    for (const e of filtered) {
+      const d = e['Start date'], p = e['Project'];
+      const tk = e['Tags'].split(',').map(t => t.trim()).filter(Boolean).sort().join(', ');
+      if (!grouped[d])       grouped[d] = {};
+      if (!grouped[d][p])    grouped[d][p] = {};
+      if (!grouped[d][p][tk]) grouped[d][p][tk] = [];
+      grouped[d][p][tk].push(e);
+    }
+
+    const projectTotals = {};
+    for (const e of filtered) {
+      const p = e['Project'];
+      projectTotals[p] = (projectTotals[p] || 0) + durationToHours(e['Duration']);
+    }
+    const grandTotal = Object.values(projectTotals).reduce((a, b) => a + b, 0);
+
+    let html = '';
+
+    for (const date of Object.keys(grouped).sort()) {
+      const dayEntries = filtered.filter(e => e['Start date'] === date);
+      const dayTotal   = roundQ(dayEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+
+      html += `<div class="day-block">
+        <div class="day-header">
+          <span class="day-label">${escHtml(fmtDate(date))}</span>
+          <span class="day-total">${fmtH(dayTotal)}</span>
+        </div><div class="day-body">`;
+
+      for (const proj of Object.keys(grouped[date]).sort()) {
+        const projEntries = Object.values(grouped[date][proj]).flat();
+        const projTotal   = roundQ(projEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+        const projCopyId  = storeText(fmtH(projTotal));
+
+        html += `<div class="project-block">
+          <div class="project-header">
+            <span class="project-name">${escHtml(proj)}</span>
+            <span class="project-total">
+              ${escHtml(fmtH(projTotal))}
+              <button class="btn-copy btn-copy-proj" onclick="copyStored(this,${projCopyId})">Copy</button>
+            </span>
+          </div>`;
+
+        for (const tagKey of Object.keys(grouped[date][proj]).sort()) {
+          const tagEntries   = grouped[date][proj][tagKey];
+          const roundedHours = roundQ(tagEntries.reduce((s, e) => s + durationToHours(e['Duration']), 0));
+
+          const noteMap = new Map();
+          for (const e of tagEntries) {
+            const desc = e['Description'];
+            if (desc) noteMap.set(desc, (noteMap.get(desc) || 0) + durationToHours(e['Duration']));
+          }
+          const notes = [...noteMap.keys()];
+
+          const notesCopyId = storeText(notes.join('\n'));
+
+          let notesInner = '';
+          if (!notes.length) {
+            notesInner = `<div class="notes-empty">No description</div>`;
+          } else if (notesFormat === 'list') {
+            const items = [...noteMap.entries()].map(([desc, hrs]) => {
+              const nid = storeText(desc);
+              return `<div class="note-item">
+                <span class="note-bullet">•</span>
+                <span class="note-text">${escHtml(desc)}</span>
+                <span class="note-hours-inline">${escHtml(fmtH(roundQ(hrs)))}</span>
+                <button class="btn-copy btn-copy-note" onclick="copyStored(this,${nid})">Copy</button>
+              </div>`;
+            }).join('');
+            notesInner = `<div class="notes-list">${items}</div>`;
+          } else {
+            notesInner = `<div class="notes-paragraph">${escHtml(notes.join(', '))}</div>`;
+          }
+
+          const tagDisplay = tagKey
+            ? tagKey.split(', ').map(t => `<span class="tag-badge">${escHtml(t)}</span>`).join(' ')
+            : `<span class="tag-badge untagged">Untagged</span>`;
+
+          html += `<div class="tag-section">
+            <div class="tag-row">
+              <div>${tagDisplay}</div>
+              <div class="tag-hours">${fmtH(roundedHours)}</div>
+            </div>
+            <div class="notes-row">
+              <div class="notes-content">${notesInner}</div>
+              ${notes.length ? `<button class="btn-copy" onclick="copyStored(this,${notesCopyId})">${notesFormat === 'list' ? 'Copy all' : 'Copy notes'}</button>` : ''}
+            </div>
+          </div>`;
+        }
+
+        html += `</div>`; // project-block
+      }
+      html += `</div></div>`; // day-body + day-block
+    }
+
+    // Summary
+    html += `<div class="summary-block">
+      <div class="summary-header">Project Summary</div>
+      <table class="summary-table"><tbody>`;
+
+    for (const proj of Object.keys(projectTotals).sort()) {
+      const hrs = fmtH(roundQ(projectTotals[proj]));
+      const cid = storeText(hrs);
+      html += `<tr>
+        <td>${escHtml(proj)}</td>
+        <td class="col-hours"><span class="col-hours-inner">${escHtml(hrs)}<button class="btn-copy" onclick="copyStored(this,${cid})">Copy</button></span></td>
+      </tr>`;
+    }
+
+    const grandHrs = fmtH(roundQ(grandTotal));
+    const gcid     = storeText(grandHrs);
+    html += `</tbody><tfoot>
+      <tr class="summary-footer">
+        <td>Total</td>
+        <td class="col-hours"><span class="col-hours-inner">${escHtml(grandHrs)}<button class="btn-copy" onclick="copyStored(this,${gcid})">Copy</button></span></td>
+      </tr>
+    </tfoot></table></div>`;
+
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo   = document.getElementById('date-to').value;
+    const fmt = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('report-meta').textContent =
+      `${fmt(dateFrom)} – ${fmt(dateTo)}  ·  ${filtered.length} entries · ${grandHrs} total`;
+    document.getElementById('report-body').innerHTML = html;
+    document.getElementById('report-output').style.display = 'block';
+  }
+
+  // ── Clipboard ────────────────────────────────────────────────────────────
+
+  function copyStored(btn, id) {
+    const text = _copyStore[id] ?? '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => fallbackCopy(text, btn));
+    } else {
+      fallbackCopy(text, btn);
+    }
+  }
+
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); flashCopied(btn); } catch {}
+    document.body.removeChild(ta);
+  }
+
+  function flashCopied(btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1600);
+  }
+
+  // ── Utilities ────────────────────────────────────────────────────────────
+
+  function durationToHours(dur) {
+    if (!dur || dur.startsWith('-')) return 0;
+    const parts = dur.split(':').map(Number);
+    return (parts[0]||0) + (parts[1]||0)/60 + (parts[2]||0)/3600;
+  }
+  function roundQ(h) { return Math.round(h * 4) / 4; }
+  function fmtH(h) { const v = parseFloat(h.toFixed(2)); return v % 1 === 0 ? v + 'h' : v + 'h'; }
+  function fmtDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m-1, d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function setStatus(msg) {
+    const bar = document.getElementById('status-bar');
+    document.getElementById('status-text').textContent = msg;
+    bar.classList.add('visible');
+  }
+  function clearStatus() { document.getElementById('status-bar').classList.remove('visible'); }
+  function setFetching(on) {
+    const btn = document.getElementById('fetch-btn');
+    btn.disabled = on;
+    btn.textContent = on ? 'Fetching…' : 'Fetch & Generate Report';
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideError(id) { document.getElementById(id).style.display = 'none'; }
+
+  function showEmpty(msg) {
+    document.getElementById('report-body').innerHTML = `<div class="state-msg">${escHtml(msg)}</div>`;
+    document.getElementById('report-meta').textContent = '';
+    document.getElementById('report-output').style.display = 'block';
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escAttr(s) { return escHtml(s); }
+</script>
+</body>
+</html>
