@@ -285,11 +285,27 @@
       padding: 10px 18px;
       border-radius: 9px 9px 0 0;
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
     }
     .day-label { font-size: 15px; font-weight: 700; }
     .day-total { font-size: 13px; color: #ccc; }
+    .day-collapse-btn {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 0 0 14px;
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+    .day-block.collapsed .day-collapse-btn { transform: rotate(-90deg); }
+    .day-block.collapsed .day-header { border-radius: 9px; }
+    .day-block.collapsed .day-body { display: none; }
     .day-body {
       background: var(--card);
       border: 1px solid var(--border);
@@ -439,7 +455,9 @@
     /* ── Print ── */
     @media print {
       body { background: #fff; }
-      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print, .btn-copy { display: none !important; }
+      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print, .btn-copy, .day-collapse-btn { display: none !important; }
+      .day-block.collapsed .day-body { display: block !important; }
+      .day-header { border-radius: 9px 9px 0 0 !important; cursor: default; }
       #report-output { display: block !important; }
       .day-block { break-inside: avoid; margin-bottom: 18px; }
       .project-block { break-inside: avoid; }
@@ -540,10 +558,11 @@
 <script>
 /**
  * toggl-report-v0.1.html
- * Last updated: 2026-06-23 02:19
+ * Last updated: 2026-06-23 02:27
  *
  * Version log:
- *  v0.1  2026-06-23  Day-total rounding fix (bottom-up sum of rounded sub-totals)
+ *  v0.1  2026-06-23  Collapse/expand button per day block
+ *                    Day-total rounding fix (bottom-up sum of rounded sub-totals)
  *                    Qualifier tag sub-categories (MEETING / OFFICE / CALL indent
  *                    under primary tag group; configurable, persisted to localStorage)
  *                    Hours copy button added to every tag section
@@ -947,9 +966,10 @@
       }
 
       html += `<div class="day-block">
-        <div class="day-header">
+        <div class="day-header" onclick="toggleDay(this)">
           <span class="day-label">${escHtml(fmtDate(date))}</span>
           <span class="day-total">${fmtH(dayTotal)}</span>
+          <button class="day-collapse-btn" aria-label="Collapse day">▼</button>
         </div>
         <div class="day-body">${dayHtml}</div>
       </div>`;
@@ -1008,6 +1028,12 @@
     el.value = saved !== null ? saved : 'MEETING, OFFICE, CALL';
     el.addEventListener('change', () => localStorage.setItem('qualifierTags', el.value));
   })();
+
+  // ── Day collapse ─────────────────────────────────────────────────────────
+
+  function toggleDay(header) {
+    header.closest('.day-block').classList.toggle('collapsed');
+  }
 
   // ── Clipboard ────────────────────────────────────────────────────────────
 
