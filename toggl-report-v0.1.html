@@ -538,6 +538,32 @@
 </div>
 
 <script>
+/**
+ * toggl-report-v0.1.html
+ * Last updated: 2026-06-23 02:19
+ *
+ * Version log:
+ *  v0.1  2026-06-23  Day-total rounding fix (bottom-up sum of rounded sub-totals)
+ *                    Qualifier tag sub-categories (MEETING / OFFICE / CALL indent
+ *                    under primary tag group; configurable, persisted to localStorage)
+ *                    Hours copy button added to every tag section
+ *                    Extracted buildNotesInner() to share paragraph / list rendering
+ *        ──────────  Desktop Toggl app CSV compatibility (detectFormat() inspects
+ *                    headers; supports both web-export and desktop-export columns)
+ *                    File info badge shows export type (desktop export / web export)
+ *        ──────────  Per-note hours (greyed) in bullet-list mode
+ *                    Individual copy button per bullet note
+ *                    Copy button on project-total and each tag-section hours
+ *        ──────────  Tag filter (checkbox list, toggle-all, persists selection)
+ *                    Copy notes button per tag section
+ *                    iOS Safari file-import fix (input fills label, dual events)
+ *        ──────────  Initial release: Toggl CSV → grouped report
+ *                    Grouping: date → project → tag key
+ *                    Hour rounding to nearest 0.25 h
+ *                    Date-range filter, project filter, notes format toggle
+ *                    (paragraph or bullet list)
+ */
+
   let allEntries = [];
   let allProjects = [];
   let allTags = [];
