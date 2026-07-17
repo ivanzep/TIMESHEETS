@@ -452,16 +452,163 @@
       margin-top: 12px;
     }
 
+    /* ── Tabs ── */
+    .tab-bar {
+      display: flex;
+      border-bottom: 2px solid var(--border);
+      margin-top: 20px;
+    }
+    .tab-btn {
+      padding: 9px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: -2px;
+      transition: color .15s;
+    }
+    .tab-btn.active { color: var(--accent-dark); border-bottom-color: var(--accent); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-pane-wrap { padding-top: 20px; }
+    #table-body { padding: 0 0 20px; }
+
+    /* ── Cross-tab table ── */
+    .cross-tab-wrap { overflow-x: auto; }
+    .cross-tab {
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 100%;
+      white-space: nowrap;
+    }
+    .cross-tab th {
+      background: var(--date-bg);
+      color: var(--date-text);
+      padding: 9px 14px;
+      border: 1px solid #2d2d45;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .cross-tab thead tr:nth-child(2) th { font-size: 10px; font-weight: 400; color: #aaa; }
+    .cross-tab td { padding: 8px 14px; border: 1px solid var(--border); vertical-align: middle; }
+    .cross-tab .row-label {
+      background: var(--project-bg);
+      font-weight: 600;
+      font-size: 12px;
+      white-space: nowrap;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      border-left: 3px solid var(--project-border);
+      text-align: left;
+    }
+    .cross-tab tbody tr:hover .row-label { background: #ede8fc; }
+    .cross-tab .cell-hours {
+      text-align: right;
+      color: var(--accent-dark);
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .1s;
+    }
+    .cross-tab .cell-hours:hover { background: #f5f0ff; }
+    .cross-tab .cell-hours.flash { color: #257953 !important; background: #f0fff8; }
+    .cross-tab .cell-empty { text-align: center; color: #ccc; font-size: 12px; }
+    .cross-tab .col-total { background: #fafafa; }
+    .cross-tab tfoot td { background: var(--total-bg); border-top: 2px solid var(--border); font-weight: 700; }
+    .cross-tab tfoot .cell-hours { font-size: 14px; }
+
+    /* ── Print preview modal ── */
+    .print-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 1000;
+      overflow: auto;
+      padding: 32px 20px;
+    }
+    .print-modal.open { display: block; }
+    .print-modal-inner {
+      background: #fff;
+      max-width: 1140px;
+      margin: 0 auto;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .print-modal-toolbar {
+      display: flex;
+      align-items: center;
+      padding: 13px 20px;
+      background: var(--date-bg);
+      color: #fff;
+      gap: 12px;
+    }
+    .print-modal-title { font-weight: 700; font-size: 14px; flex: 1; }
+    .print-modal-body { padding: 32px; }
+    .btn-modal-print {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 7px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      transition: background .15s;
+    }
+    .btn-modal-print:hover { background: var(--accent-dark); }
+    .btn-modal-close {
+      background: none;
+      border: 1px solid #555;
+      color: #ccc;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-modal-close:hover { border-color: #999; color: #fff; }
+
     /* ── Print ── */
     @media print {
       body { background: #fff; }
-      .app-header, #upload-section, #filters-panel, .report-header-row .btn-print, .btn-copy, .day-collapse-btn { display: none !important; }
-      .day-block.collapsed .day-body { display: block !important; }
-      .day-header { border-radius: 9px 9px 0 0 !important; cursor: default; }
-      #report-output { display: block !important; }
-      .day-block { break-inside: avoid; margin-bottom: 18px; }
-      .project-block { break-inside: avoid; }
-      .summary-block { break-inside: avoid; }
+
+      /* Normal print */
+      body:not(.printing-preview) .app-header,
+      body:not(.printing-preview) #upload-section,
+      body:not(.printing-preview) #filters-panel,
+      body:not(.printing-preview) .report-header-row,
+      body:not(.printing-preview) .tab-bar,
+      body:not(.printing-preview) .btn-copy,
+      body:not(.printing-preview) .day-collapse-btn,
+      body:not(.printing-preview) .print-modal { display: none !important; }
+      body:not(.printing-preview) .day-block.collapsed .day-body { display: block !important; }
+      body:not(.printing-preview) .day-header { border-radius: 9px 9px 0 0 !important; cursor: default; }
+      body:not(.printing-preview) #report-output { display: block !important; }
+      body:not(.printing-preview) .day-block { break-inside: avoid; margin-bottom: 18px; }
+      body:not(.printing-preview) .project-block { break-inside: avoid; }
+      body:not(.printing-preview) .summary-block { break-inside: avoid; }
+      body:not(.printing-preview) .cross-tab .row-label { position: static; }
+
+      /* Print-preview PDF export */
+      body.printing-preview > *:not(.print-modal) { display: none !important; }
+      body.printing-preview .print-modal {
+        display: block !important;
+        position: static !important;
+        background: none !important;
+        overflow: visible !important;
+        padding: 0 !important;
+      }
+      body.printing-preview .print-modal-toolbar { display: none !important; }
+      body.printing-preview .print-modal-inner { box-shadow: none !important; border-radius: 0 !important; max-width: none !important; }
+      body.printing-preview .btn-copy,
+      body.printing-preview .day-collapse-btn { display: none !important; }
+      body.printing-preview .cross-tab .row-label { position: static; }
+      body.printing-preview .day-block { break-inside: avoid; }
     }
   </style>
 </head>
@@ -548,20 +695,46 @@
         <div class="report-title">Timesheet Report</div>
         <div class="report-meta" id="report-meta"></div>
       </div>
-      <button class="btn-print" onclick="window.print()">🖨 Print</button>
+      <button class="btn-print" onclick="openPrintPreview()">🖨 Print Preview</button>
     </div>
-    <div id="report-body"></div>
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-detail" onclick="switchTab('detail')">Detail View</button>
+      <button class="tab-btn" id="tab-table" onclick="switchTab('table')">Table View</button>
+    </div>
+    <div class="tab-pane-wrap">
+      <div id="report-body"></div>
+      <div id="table-body" style="display:none"></div>
+    </div>
   </section>
 
+</div>
+
+<!-- Print preview modal -->
+<div class="print-modal" id="print-modal" onclick="closePrintPreviewOutside(event)">
+  <div class="print-modal-inner">
+    <div class="print-modal-toolbar">
+      <span class="print-modal-title">🖨 Print Preview</span>
+      <div style="display:flex;gap:10px">
+        <button class="btn-modal-print" onclick="printFromPreview()">Export PDF</button>
+        <button class="btn-modal-close" onclick="closePrintPreview()">✕ Close</button>
+      </div>
+    </div>
+    <div class="print-modal-body" id="print-modal-body"></div>
+  </div>
 </div>
 
 <script>
 /**
  * toggl-report-v0.2.html
- * Last updated: 2026-07-17 00:00
+ * Last updated: 2026-07-17 00:01
  *
  * Version log:
- *  v0.2  2026-07-17  Toggl web Summary report CSV compatibility
+ *  v0.2  2026-07-17  Table View tab: cross-tab with X=project>tag, Y=date
+ *                    Click any cell to copy its value
+ *                    Summary format table view: project / task / hours
+ *                    Print Preview modal with full-screen preview and Export PDF
+ *                    (uses browser print-to-PDF; collapsed days auto-expanded)
+ *        ──────────  Toggl web Summary report CSV compatibility
  *                    (Project / Description / Duration / Duration % columns)
  *                    Summary mode: grouped by project, no date or tag breakdown,
  *                    date/tag/qualifier filters hidden automatically
@@ -592,6 +765,7 @@
   let allProjects = [];
   let allTags = [];
   let currentFormat = null;
+  let activeTab = 'detail';
 
   // copy store — reset each generateReport() call
   let _copyStore = {};
@@ -1046,6 +1220,7 @@
     document.getElementById('report-meta').textContent = metaParts.join('  ·  ');
     document.getElementById('report-body').innerHTML = html;
     document.getElementById('report-output').style.display = 'block';
+    buildTableView(filtered);
   }
 
   function generateSummaryReport() {
@@ -1142,6 +1317,7 @@
     document.getElementById('report-meta').textContent = `${filtered.length} entries · ${grandHrs} total`;
     document.getElementById('report-body').innerHTML = html;
     document.getElementById('report-output').style.display = 'block';
+    buildTableView(filtered);
   }
 
   // Persist qualifier tags across page loads
@@ -1156,6 +1332,203 @@
 
   function toggleDay(header) {
     header.closest('.day-block').classList.toggle('collapsed');
+  }
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('report-body').style.display = tab === 'detail' ? '' : 'none';
+    document.getElementById('table-body').style.display  = tab === 'table'  ? '' : 'none';
+    document.getElementById('tab-detail').classList.toggle('active', tab === 'detail');
+    document.getElementById('tab-table').classList.toggle('active', tab === 'table');
+  }
+
+  // ── Table View ───────────────────────────────────────────────────────────
+
+  function copyCellHours(el, id) {
+    const text = _copyStore[id] ?? '';
+    const orig = el.textContent;
+    el.classList.add('flash');
+    el.textContent = '✓';
+    const restore = () => { el.textContent = orig; el.classList.remove('flash'); };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => setTimeout(restore, 900))
+        .catch(() => { fbCopyText(text); setTimeout(restore, 900); });
+    } else {
+      fbCopyText(text); setTimeout(restore, 900);
+    }
+  }
+
+  function fbCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch {}
+    document.body.removeChild(ta);
+  }
+
+  function buildTableView(filtered) {
+    if (currentFormat === 'summary') { buildSummaryTableView(filtered); return; }
+    if (!filtered.length) { document.getElementById('table-body').innerHTML = ''; return; }
+
+    const dates = [...new Set(filtered.map(e => e['Start date']))].sort();
+
+    // Unique (project, tagKey) columns sorted by project then tag
+    const colMap = new Map();
+    for (const e of filtered) {
+      const proj   = e['Project'] || '(No Project)';
+      const tagKey = normTags(e['Tags']);
+      const k = proj + '\x00' + tagKey;
+      if (!colMap.has(k)) colMap.set(k, { proj, tagKey });
+    }
+    const cols = [...colMap.values()].sort((a, b) =>
+      a.proj < b.proj ? -1 : a.proj > b.proj ? 1 : a.tagKey < b.tagKey ? -1 : a.tagKey > b.tagKey ? 1 : 0
+    );
+
+    // Raw hours matrix: date×proj×tagKey → hours
+    const matrix = {};
+    for (const e of filtered) {
+      const k = e['Start date'] + '\x00' + (e['Project'] || '(No Project)') + '\x00' + normTags(e['Tags']);
+      matrix[k] = (matrix[k] || 0) + durationToHours(e['Duration']);
+    }
+
+    // Project header spans
+    const projSpans = [];
+    for (const col of cols) {
+      if (!projSpans.length || projSpans[projSpans.length - 1].proj !== col.proj)
+        projSpans.push({ proj: col.proj, span: 1 });
+      else projSpans[projSpans.length - 1].span++;
+    }
+
+    // Build header (2 rows)
+    let thead = `<tr><th class="row-label" rowspan="2" style="text-align:left">Date</th>`;
+    for (const { proj, span } of projSpans)
+      thead += `<th colspan="${span}" style="border-left:2px solid #3a3a55">${escHtml(proj)}</th>`;
+    thead += `<th rowspan="2" class="col-total cell-hours" style="border-left:2px solid #3a3a55;background:var(--date-bg);color:#fff">Total</th></tr><tr>`;
+    cols.forEach((col, ci) => {
+      const sep = ci === 0 || cols[ci - 1].proj !== col.proj ? ' style="border-left:2px solid #3a3a55"' : '';
+      thead += `<th${sep}>${escHtml(col.tagKey || '(untagged)')}</th>`;
+    });
+    thead += `</tr>`;
+
+    // Body rows + column accumulators
+    const colTotals = {};
+    let grandTotal = 0;
+    let tbody = '';
+    for (const date of dates) {
+      let rowTotal = 0;
+      let cells = '';
+      cols.forEach((col, ci) => {
+        const hrs = roundQ(matrix[date + '\x00' + col.proj + '\x00' + col.tagKey] || 0);
+        const sep = ci === 0 || cols[ci - 1].proj !== col.proj ? ' style="border-left:2px solid var(--border)"' : '';
+        if (hrs > 0) {
+          rowTotal += hrs;
+          const ck = col.proj + '\x00' + col.tagKey;
+          colTotals[ck] = (colTotals[ck] || 0) + hrs;
+          const cid = storeText(fmtH(hrs));
+          cells += `<td class="cell-hours"${sep} onclick="copyCellHours(this,${cid})" title="Click to copy">${fmtH(hrs)}</td>`;
+        } else {
+          cells += `<td class="cell-empty"${sep}>—</td>`;
+        }
+      });
+      grandTotal += rowTotal;
+      const rid = storeText(fmtH(rowTotal));
+      tbody += `<tr>
+        <td class="row-label">${escHtml(fmtDate(date))}</td>
+        ${cells}
+        <td class="col-total cell-hours" style="border-left:2px solid var(--border)" onclick="copyCellHours(this,${rid})" title="Click to copy">${fmtH(rowTotal)}</td>
+      </tr>`;
+    }
+
+    // Footer row
+    let tfoot = `<tr><td class="row-label">Total</td>`;
+    cols.forEach((col, ci) => {
+      const total = colTotals[col.proj + '\x00' + col.tagKey] || 0;
+      const sep = ci === 0 || cols[ci - 1].proj !== col.proj ? ' style="border-left:2px solid var(--border)"' : '';
+      if (total > 0) {
+        const cid = storeText(fmtH(total));
+        tfoot += `<td class="col-total cell-hours"${sep} onclick="copyCellHours(this,${cid})" title="Click to copy">${fmtH(total)}</td>`;
+      } else {
+        tfoot += `<td class="col-total cell-empty"${sep}>—</td>`;
+      }
+    });
+    const gid = storeText(fmtH(grandTotal));
+    tfoot += `<td class="col-total cell-hours" style="border-left:2px solid var(--border);font-size:14px;color:var(--accent-dark)" onclick="copyCellHours(this,${gid})" title="Click to copy">${fmtH(grandTotal)}</td></tr>`;
+
+    document.getElementById('table-body').innerHTML =
+      `<div class="cross-tab-wrap"><table class="cross-tab">
+        <thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot>
+      </table></div>`;
+  }
+
+  function buildSummaryTableView(filtered) {
+    const projects = [...new Set(filtered.map(e => e['Project'] || '(No Project)'))].sort();
+    let rows = '';
+    let grandTotal = 0;
+
+    for (const proj of projects) {
+      const entries = filtered.filter(e => (e['Project'] || '(No Project)') === proj);
+      entries.forEach((e, i) => {
+        const hrs  = roundQ(durationToHours(e['Duration']));
+        grandTotal += hrs;
+        const cid  = storeText(fmtH(hrs));
+        const desc = escHtml((e['Description'] || '').trim() || '(no description)');
+        const projCell = i === 0
+          ? `<td rowspan="${entries.length}" style="font-weight:700;vertical-align:top;background:var(--project-bg);border-left:3px solid var(--project-border)">${escHtml(proj)}</td>`
+          : '';
+        rows += `<tr>${projCell}
+          <td>${desc}</td>
+          <td class="col-hours" onclick="copyCellHours(this,${cid})" title="Click to copy" style="cursor:pointer;color:var(--accent-dark);font-weight:700">${fmtH(hrs)}</td>
+        </tr>`;
+      });
+    }
+
+    const gcid = storeText(fmtH(grandTotal));
+    document.getElementById('table-body').innerHTML = `<div style="overflow-x:auto;padding:16px 0">
+      <table class="summary-table" style="min-width:100%">
+        <thead><tr>
+          <th style="padding:10px 18px;background:var(--date-bg);color:#fff;font-size:12px;text-align:left;font-weight:700">Project</th>
+          <th style="padding:10px 18px;background:var(--date-bg);color:#fff;font-size:12px;text-align:left;font-weight:700">Task</th>
+          <th style="padding:10px 18px;background:var(--date-bg);color:#fff;font-size:12px;text-align:right;font-weight:700">Hours</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="summary-footer">
+          <td colspan="2">Total</td>
+          <td class="col-hours" onclick="copyCellHours(this,${gcid})" title="Click to copy" style="cursor:pointer">${fmtH(grandTotal)}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+  }
+
+  // ── Print Preview ─────────────────────────────────────────────────────────
+
+  function openPrintPreview() {
+    const src  = document.getElementById(activeTab === 'detail' ? 'report-body' : 'table-body');
+    const body = document.getElementById('print-modal-body');
+    body.innerHTML = src.innerHTML;
+    // Expand collapsed days and strip interactive elements
+    body.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
+    body.querySelectorAll('.day-collapse-btn, .btn-copy').forEach(el => el.remove());
+    body.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+    body.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
+    document.getElementById('print-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closePrintPreview() {
+    document.getElementById('print-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function closePrintPreviewOutside(e) {
+    if (e.target === document.getElementById('print-modal')) closePrintPreview();
+  }
+
+  function printFromPreview() {
+    document.body.classList.add('printing-preview');
+    window.addEventListener('afterprint', () => document.body.classList.remove('printing-preview'), { once: true });
+    setTimeout(() => window.print(), 50);
   }
 
   // ── Clipboard ────────────────────────────────────────────────────────────
@@ -1192,6 +1565,7 @@
 
   function renderEmpty(msg) {
     document.getElementById('report-body').innerHTML = `<div class="state-msg">${escHtml(msg)}</div>`;
+    document.getElementById('table-body').innerHTML = '';
     document.getElementById('report-meta').textContent = '';
     document.getElementById('report-output').style.display = 'block';
   }
