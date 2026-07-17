@@ -656,6 +656,13 @@
     .page-ctrl-btn.active { background: var(--accent); color: #fff; }
     .page-ctrl-btn:not(.active):hover { background: rgba(255,255,255,.1); color: #fff; }
 
+    .print-modal-actions {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+      align-items: center;
+    }
+
     /* ── Page frame (print preview) ── */
     .print-modal-bg {
       background: #c8c8c8;
@@ -676,6 +683,19 @@
     }
     #page-content-outer { overflow: hidden; }
     #page-content-scaler { transform-origin: top left; }
+
+    /* ── Mobile ── */
+    @media (max-width: 600px) {
+      .print-modal { padding: 8px 4px; }
+      .print-modal-inner { border-radius: 6px; }
+      .print-modal-toolbar { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+      .print-modal-title { flex: 1 0 auto; order: -1; }
+      .print-page-controls { flex: 1 0 100%; order: 1; }
+      .print-modal-actions { order: 2; width: 100%; justify-content: flex-end; }
+      .print-modal-bg { padding: 12px 6px 20px; }
+      .page-frame { padding: 20px; }
+      .report-header-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
 
     /* ── Print ── */
     @media print {
@@ -837,7 +857,7 @@
           <button class="page-ctrl-btn" data-orient="landscape" onclick="setOrientation('landscape')">Landscape</button>
         </div>
       </div>
-      <div style="display:flex;gap:10px;flex-shrink:0;align-items:center">
+      <div class="print-modal-actions">
         <button class="page-ctrl-btn" data-scale onclick="toggleScaleToFit()">Scale to fit</button>
         <button class="btn-modal-print" onclick="printFromPreview()">Export PDF</button>
         <button class="btn-modal-close" onclick="closePrintPreview()">✕ Close</button>
@@ -1757,9 +1777,9 @@
     const d = PAGE_PX[printPageSize];
     const w = printOrientation === 'portrait' ? d.w : d.h;
     frame.style.maxWidth = w + 'px';
-    // Re-scale content after frame width settles (no CSS transition now)
+    // Re-scale after layout settles; RAF lets the browser apply the new max-width first
     if (document.getElementById('print-modal').classList.contains('open')) {
-      applyScaleToFit();
+      requestAnimationFrame(() => applyScaleToFit());
     }
   }
 
@@ -1776,8 +1796,10 @@
 
     if (!printScaleToFit) return;
 
-    // Inner content area = frame width minus left + right padding (72px each)
-    const innerW = frame.clientWidth - 144;
+    // Inner content area = frame width minus actual computed padding (adapts to mobile breakpoints)
+    const cs = getComputedStyle(frame);
+    const padH = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const innerW = frame.clientWidth - padH;
     const naturalW = scaler.scrollWidth;
 
     if (naturalW > innerW && innerW > 0) {
@@ -1814,10 +1836,10 @@
     frame.innerHTML = '';
     frame.appendChild(outer);
 
-    updatePageFrame();
-    applyScaleToFit();
+    // Open modal first so the frame has real layout dimensions before scaling
     document.getElementById('print-modal').classList.add('open');
     document.body.style.overflow = 'hidden';
+    updatePageFrame();
   }
 
   function closePrintPreview() {
