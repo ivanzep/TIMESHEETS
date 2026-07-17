@@ -517,6 +517,11 @@
     .cross-tab .cell-hours.flash { color: #257953 !important; background: #f0fff8; }
     .cross-tab .cell-empty { text-align: center; color: #ccc; font-size: 12px; }
     .cross-tab .col-total { background: #fafafa; }
+    .cross-tab thead .total-row td { background: var(--total-bg); font-weight: 700; border-top: 2px solid var(--border); border-bottom: 2px solid var(--border); }
+    .cross-tab thead .total-row .cell-hours { font-size: 14px; color: var(--accent-dark); cursor: pointer; }
+    .cross-tab thead .total-row .cell-hours:hover { background: #f5f0ff; }
+    .cross-tab thead .total-row .cell-empty { font-size: 12px; color: #ccc; text-align: center; }
+    .cross-tab .spacer-row td { background: var(--bg); height: 10px; padding: 0; border-left: none; border-right: none; }
     .cross-tab tfoot td { background: var(--total-bg); border-top: 2px solid var(--border); font-weight: 700; }
     .cross-tab tfoot .cell-hours { font-size: 14px; }
     .cross-tab .proj-header-row td {
@@ -528,6 +533,29 @@
       text-transform: uppercase;
       letter-spacing: .4px;
       border-color: #2d2d45;
+    }
+    .cross-tab .proj-header-row td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      white-space: nowrap;
+    }
+
+    /* ── Cell tooltip ── */
+    .cell-tooltip {
+      position: fixed;
+      background: rgba(20,20,38,.94);
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.55;
+      padding: 7px 11px;
+      border-radius: 7px;
+      max-width: 320px;
+      white-space: pre-wrap;
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+      box-shadow: 0 3px 14px rgba(0,0,0,.38);
     }
 
     /* ── Print preview modal ── */
@@ -618,13 +646,18 @@
       padding: 32px 24px 48px;
       min-height: 80px;
     }
+    .page-frame-wrap {
+      display: flex;
+      justify-content: center;
+    }
     .page-frame {
       background: #fff;
-      margin: 0 auto;
       padding: 72px;
       box-shadow: 0 4px 24px rgba(0,0,0,.4);
-      max-width: 816px; /* letter portrait default */
+      max-width: 816px;
+      width: 100%;
       transition: max-width .2s;
+      flex-shrink: 0;
     }
 
     /* ── Print ── */
@@ -660,7 +693,9 @@
       body.printing-preview .print-modal-toolbar { display: none !important; }
       body.printing-preview .print-modal-inner { box-shadow: none !important; border-radius: 0 !important; max-width: none !important; }
       body.printing-preview .print-modal-bg { background: none !important; padding: 0 !important; }
-      body.printing-preview .page-frame { max-width: none !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
+      body.printing-preview .page-frame-wrap { height: auto !important; display: block !important; }
+      body.printing-preview .page-frame { max-width: none !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; transform: none !important; }
+      body.printing-preview .cross-tab .spacer-row td { background: #fff; }
       body.printing-preview .btn-copy,
       body.printing-preview .day-collapse-btn { display: none !important; }
       body.printing-preview .cross-tab .row-label { position: static; }
@@ -782,13 +817,16 @@
           <button class="page-ctrl-btn" data-orient="landscape" onclick="setOrientation('landscape')">Landscape</button>
         </div>
       </div>
-      <div style="display:flex;gap:10px;flex-shrink:0">
+      <div style="display:flex;gap:10px;flex-shrink:0;align-items:center">
+        <button class="page-ctrl-btn" data-scale onclick="toggleScaleToFit()">Scale to fit</button>
         <button class="btn-modal-print" onclick="printFromPreview()">Export PDF</button>
         <button class="btn-modal-close" onclick="closePrintPreview()">✕ Close</button>
       </div>
     </div>
     <div class="print-modal-bg">
-      <div class="page-frame" id="page-frame"></div>
+      <div class="page-frame-wrap" id="page-frame-wrap">
+        <div class="page-frame" id="page-frame"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -796,10 +834,18 @@
 <script>
 /**
  * toggl-report-v0.2.html
- * Last updated: 2026-07-17 21:00
+ * Last updated: 2026-07-17 23:00
  *
  * Version log:
- *  v0.2  2026-07-17  Print Preview page size selector (Letter / A4 / Legal) and
+ *  v0.2  2026-07-17  Table View: hover tooltip shows notes/descriptions per cell
+ *                    Table View: project name column fixed (sticky) on horizontal scroll
+ *                    Table View: qualifier tags (MEETING/OFFICE/CALL) sorted last in
+ *                    tag display labels while matrix key stays alphabetical
+ *        ──────────  Table View: Total row moved to top (under header); blank
+ *                    spacer rows after Total row and after each project section
+ *                    Print Preview: "Scale to fit" toggle scales page frame to
+ *                    fill available preview width using CSS transform
+ *        ──────────  Print Preview page size selector (Letter / A4 / Legal) and
  *                    orientation toggle (Portrait / Landscape); @page rule injected
  *                    at export time; page frame visually constrains preview to
  *                    selected paper dimensions (96 dpi pixel widths)
@@ -1451,80 +1497,153 @@
     if (currentFormat === 'summary') { buildSummaryTableView(filtered); return; }
     if (!filtered.length) { document.getElementById('table-body').innerHTML = ''; return; }
 
-    // Y axis = project → tag rows   X axis = dates (columns)
+    // Read qualifier set so qualifier tags are sorted last in display labels
+    const qualRaw = (document.getElementById('qualifier-tags').value || '').trim();
+    const qualifierSet = new Set(
+      qualRaw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean)
+    );
+
     const dates = [...new Set(filtered.map(e => e['Start date']))].sort();
 
-    // Build project → [tagKeys] map (sorted) and raw hours matrix
-    const projTags = new Map(); // proj → Set of tagKeys
+    const projTags = new Map();
     const matrix   = {};
+    const notesMap = {}; // mk → Set of descriptions (for hover tooltip)
     for (const e of filtered) {
       const proj   = e['Project'] || '(No Project)';
-      const tagKey = normTags(e['Tags']);
+      const tagKey = normTags(e['Tags']); // alphabetical key for matrix
       if (!projTags.has(proj)) projTags.set(proj, new Set());
       projTags.get(proj).add(tagKey);
       const mk = e['Start date'] + '\x00' + proj + '\x00' + tagKey;
       matrix[mk] = (matrix[mk] || 0) + durationToHours(e['Duration']);
+      const desc = (e['Description'] || '').trim();
+      if (desc) {
+        if (!notesMap[mk]) notesMap[mk] = new Set();
+        notesMap[mk].add(desc);
+      }
     }
     const projects = [...projTags.keys()].sort();
+    const nCols = dates.length + 2;
 
-    // Header: one row, date columns
-    const nCols = dates.length + 2; // row-label col + date cols + total col
-    let thead = `<tr><th class="row-label" style="text-align:left">Project / Tag</th>`;
-    for (const date of dates)
-      thead += `<th>${escHtml(fmtDateShort(date))}</th>`;
-    thead += `<th class="col-total" style="border-left:2px solid #3a3a55">Total</th></tr>`;
-
-    // Body: project header rows + tag rows
+    // First pass: compute column totals and grand total
     const dateTotals = {};
     let grandTotal = 0;
-    let tbody = '';
+    for (const proj of projects) {
+      for (const tagKey of projTags.get(proj)) {
+        for (const date of dates) {
+          const hrs = roundQ(matrix[date + '\x00' + proj + '\x00' + tagKey] || 0);
+          if (hrs > 0) {
+            dateTotals[date] = (dateTotals[date] || 0) + hrs;
+            grandTotal += hrs;
+          }
+        }
+      }
+    }
 
+    // Header row
+    let thead = `<tr><th class="row-label" style="text-align:left">Project / Tag</th>`;
+    for (const date of dates) thead += `<th>${escHtml(fmtDateShort(date))}</th>`;
+    thead += `<th class="col-total" style="border-left:2px solid #3a3a55">Total</th></tr>`;
+
+    // Total row pinned at the top
+    thead += `<tr class="total-row"><td class="row-label">Total</td>`;
+    for (const date of dates) {
+      const total = dateTotals[date] || 0;
+      if (total > 0) {
+        const cid = storeText(fmtH(total));
+        thead += `<td class="col-total cell-hours" onclick="copyCellHours(this,${cid})" title="Click to copy">${fmtH(total)}</td>`;
+      } else {
+        thead += `<td class="col-total cell-empty">—</td>`;
+      }
+    }
+    const gid = storeText(fmtH(grandTotal));
+    thead += `<td class="col-total cell-hours" style="border-left:2px solid #3a3a55" onclick="copyCellHours(this,${gid})" title="Click to copy">${fmtH(grandTotal)}</td></tr>`;
+    thead += `<tr class="spacer-row"><td colspan="${nCols}"></td></tr>`;
+
+    // Body: project sections
+    let tbody = '';
     for (const proj of projects) {
       const tags = [...projTags.get(proj)].sort();
-      tbody += `<tr class="proj-header-row"><td colspan="${nCols}">${escHtml(proj)}</td></tr>`;
+      // First cell is sticky; second cell spans remaining columns as dark filler
+      tbody += `<tr class="proj-header-row">
+        <td>${escHtml(proj)}</td>
+        <td colspan="${nCols - 1}"></td>
+      </tr>`;
 
       for (const tagKey of tags) {
+        // Display label: qualifier tags sorted to end
+        const tagDisplay = displayTags(tagKey, qualifierSet);
         let rowTotal = 0;
         let cells = '';
         for (const date of dates) {
           const hrs = roundQ(matrix[date + '\x00' + proj + '\x00' + tagKey] || 0);
           if (hrs > 0) {
             rowTotal += hrs;
-            dateTotals[date] = (dateTotals[date] || 0) + hrs;
             const cid = storeText(fmtH(hrs));
-            cells += `<td class="cell-hours" onclick="copyCellHours(this,${cid})" title="Click to copy">${fmtH(hrs)}</td>`;
+            const mk = date + '\x00' + proj + '\x00' + tagKey;
+            const noteSet = notesMap[mk];
+            const noteAttrs = noteSet && noteSet.size
+              ? ` data-notes="${escAttr([...noteSet].join('\n'))}" onmouseenter="showCellTooltip(this)" onmouseleave="hideCellTooltip()"`
+              : '';
+            cells += `<td class="cell-hours"${noteAttrs} onclick="copyCellHours(this,${cid})" title="Click to copy">${fmtH(hrs)}</td>`;
           } else {
             cells += `<td class="cell-empty">—</td>`;
           }
         }
-        grandTotal += rowTotal;
         const rid = storeText(fmtH(rowTotal));
         tbody += `<tr>
-          <td class="row-label">${escHtml(tagKey || '(untagged)')}</td>
+          <td class="row-label">${escHtml(tagDisplay || '(untagged)')}</td>
           ${cells}
           <td class="col-total cell-hours" style="border-left:2px solid var(--border)" onclick="copyCellHours(this,${rid})" title="Click to copy">${fmtH(rowTotal)}</td>
         </tr>`;
       }
-    }
 
-    // Footer: date column totals
-    let tfoot = `<tr><td class="row-label">Total</td>`;
-    for (const date of dates) {
-      const total = dateTotals[date] || 0;
-      if (total > 0) {
-        const cid = storeText(fmtH(total));
-        tfoot += `<td class="col-total cell-hours" onclick="copyCellHours(this,${cid})" title="Click to copy">${fmtH(total)}</td>`;
-      } else {
-        tfoot += `<td class="col-total cell-empty">—</td>`;
-      }
+      tbody += `<tr class="spacer-row"><td colspan="${nCols}"></td></tr>`;
     }
-    const gid = storeText(fmtH(grandTotal));
-    tfoot += `<td class="col-total cell-hours" style="border-left:2px solid var(--border);font-size:14px;color:var(--accent-dark)" onclick="copyCellHours(this,${gid})" title="Click to copy">${fmtH(grandTotal)}</td></tr>`;
 
     document.getElementById('table-body').innerHTML =
       `<div class="cross-tab-wrap"><table class="cross-tab">
-        <thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot>
+        <thead>${thead}</thead><tbody>${tbody}</tbody>
       </table></div>`;
+  }
+
+  // Sort qualifier tags to the end of a display label (matrix key stays alphabetical)
+  function displayTags(normalizedTagKey, qualSet) {
+    if (!qualSet || !qualSet.size || !normalizedTagKey) return normalizedTagKey;
+    const parts = normalizedTagKey.split(', ').filter(Boolean);
+    const primary = parts.filter(t => !qualSet.has(t.toUpperCase()));
+    const quals   = parts.filter(t =>  qualSet.has(t.toUpperCase()));
+    return [...primary, ...quals].join(', ');
+  }
+
+  // ── Cell tooltip ──────────────────────────────────────────────────────────
+
+  let _cellTooltip = null;
+  function getCellTooltip() {
+    if (!_cellTooltip) {
+      _cellTooltip = document.createElement('div');
+      _cellTooltip.className = 'cell-tooltip';
+      document.body.appendChild(_cellTooltip);
+    }
+    return _cellTooltip;
+  }
+  function showCellTooltip(el) {
+    const notes = el.dataset.notes;
+    if (!notes) return;
+    const tt = getCellTooltip();
+    tt.textContent = notes;
+    tt.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    const ttW = tt.offsetWidth;
+    const ttH = tt.offsetHeight;
+    let left = rect.left + rect.width / 2 - ttW / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - ttW - 8));
+    let top = rect.top - ttH - 6;
+    if (top < 8) top = rect.bottom + 6;
+    tt.style.left = left + 'px';
+    tt.style.top  = top + 'px';
+  }
+  function hideCellTooltip() {
+    if (_cellTooltip) _cellTooltip.style.display = 'none';
   }
 
   function buildSummaryTableView(filtered) {
@@ -1570,6 +1689,7 @@
 
   let printPageSize = 'letter';
   let printOrientation = 'portrait';
+  let printScaleToFit = false;
 
   // Pixel widths at 96 dpi for each paper size (portrait)
   const PAGE_PX = {
@@ -1592,12 +1712,41 @@
     updatePageFrame();
   }
 
+  function toggleScaleToFit() {
+    printScaleToFit = !printScaleToFit;
+    document.querySelector('[data-scale]').classList.toggle('active', printScaleToFit);
+    applyScaleToFit();
+  }
+
   function updatePageFrame() {
     const frame = document.getElementById('page-frame');
     if (!frame) return;
     const d = PAGE_PX[printPageSize];
     const w = printOrientation === 'portrait' ? d.w : d.h;
     frame.style.maxWidth = w + 'px';
+    applyScaleToFit();
+  }
+
+  function applyScaleToFit() {
+    const frame = document.getElementById('page-frame');
+    const wrap  = document.getElementById('page-frame-wrap');
+    if (!frame || !wrap) return;
+    if (printScaleToFit) {
+      // Natural frame width = page width + left padding + right padding (72px each)
+      const d = PAGE_PX[printPageSize];
+      const naturalW = (printOrientation === 'portrait' ? d.w : d.h) + 144;
+      const availW = document.querySelector('.print-modal-bg').clientWidth - 48;
+      const scale = Math.min(1, availW / naturalW);
+      frame.style.transform = `scale(${scale})`;
+      frame.style.transformOrigin = 'top center';
+      // Compress wrapper to match visually-scaled height (transform doesn't affect layout)
+      const naturalH = frame.offsetHeight;
+      wrap.style.height = Math.ceil(naturalH * scale) + 'px';
+    } else {
+      frame.style.transform = '';
+      frame.style.transformOrigin = '';
+      wrap.style.height = '';
+    }
   }
 
   function openPrintPreview() {
@@ -1608,8 +1757,9 @@
     frame.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
     frame.querySelectorAll('.day-collapse-btn, .btn-copy').forEach(el => el.remove());
     frame.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+    frame.querySelectorAll('[onmouseenter]').forEach(el => { el.removeAttribute('onmouseenter'); el.removeAttribute('onmouseleave'); });
     frame.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
-    updatePageFrame();
+    updatePageFrame(); // sets max-width and applies scale-to-fit if active
     document.getElementById('print-modal').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
