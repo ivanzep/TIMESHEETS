@@ -539,7 +539,23 @@
       left: 0;
       z-index: 3;
       white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
     }
+    .table-proj-collapse {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,.55);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      margin-right: 6px;
+      transition: transform .18s;
+      vertical-align: middle;
+      line-height: 1;
+      display: inline-block;
+    }
+    .cross-tab .proj-header-row.proj-collapsed .table-proj-collapse { transform: rotate(-90deg); }
 
     /* ── Cell tooltip ── */
     .cell-tooltip {
@@ -571,7 +587,7 @@
     .print-modal.open { display: block; }
     .print-modal-inner {
       background: #fff;
-      max-width: 1140px;
+      max-width: min(calc(100vw - 40px), 1600px);
       margin: 0 auto;
       border-radius: 10px;
       overflow: hidden;
@@ -656,9 +672,10 @@
       box-shadow: 0 4px 24px rgba(0,0,0,.4);
       max-width: 816px;
       width: 100%;
-      transition: max-width .2s;
       flex-shrink: 0;
     }
+    #page-content-outer { overflow: hidden; }
+    #page-content-scaler { transform-origin: top left; }
 
     /* ── Print ── */
     @media print {
@@ -694,10 +711,13 @@
       body.printing-preview .print-modal-inner { box-shadow: none !important; border-radius: 0 !important; max-width: none !important; }
       body.printing-preview .print-modal-bg { background: none !important; padding: 0 !important; }
       body.printing-preview .page-frame-wrap { height: auto !important; display: block !important; }
-      body.printing-preview .page-frame { max-width: none !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; transform: none !important; }
+      body.printing-preview .page-frame { max-width: none !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
+      body.printing-preview #page-content-outer { height: auto !important; overflow: visible !important; }
+      body.printing-preview #page-content-scaler { transform: none !important; }
       body.printing-preview .cross-tab .spacer-row td { background: #fff; }
       body.printing-preview .btn-copy,
-      body.printing-preview .day-collapse-btn { display: none !important; }
+      body.printing-preview .day-collapse-btn,
+      body.printing-preview .table-proj-collapse { display: none !important; }
       body.printing-preview .cross-tab .row-label { position: static; }
       body.printing-preview .cross-tab-wrap { overflow-x: visible !important; }
       body.printing-preview .day-block { break-inside: avoid; }
@@ -1559,18 +1579,20 @@
     thead += `<td class="col-total cell-hours" style="border-left:2px solid #3a3a55" onclick="copyCellHours(this,${gid})" title="Click to copy">${fmtH(grandTotal)}</td></tr>`;
     thead += `<tr class="spacer-row"><td colspan="${nCols}"></td></tr>`;
 
-    // Body: project sections
+    // Body: project sections — each project gets an index for collapse toggling
     let tbody = '';
-    for (const proj of projects) {
+    for (let pi = 0; pi < projects.length; pi++) {
+      const proj = projects[pi];
       const tags = [...projTags.get(proj)].sort();
-      // First cell is sticky; second cell spans remaining columns as dark filler
-      tbody += `<tr class="proj-header-row">
-        <td>${escHtml(proj)}</td>
+      // Sticky first cell with collapse toggle; filler cell spans remaining columns
+      tbody += `<tr class="proj-header-row" data-proj-idx="${pi}">
+        <td onclick="toggleTableProject(${pi})">
+          <button class="table-proj-collapse">▼</button>${escHtml(proj)}
+        </td>
         <td colspan="${nCols - 1}"></td>
       </tr>`;
 
       for (const tagKey of tags) {
-        // Display label: qualifier tags sorted to end
         const tagDisplay = displayTags(tagKey, qualifierSet);
         let rowTotal = 0;
         let cells = '';
@@ -1590,14 +1612,14 @@
           }
         }
         const rid = storeText(fmtH(rowTotal));
-        tbody += `<tr>
+        tbody += `<tr data-proj-idx="${pi}">
           <td class="row-label">${escHtml(tagDisplay || '(untagged)')}</td>
           ${cells}
           <td class="col-total cell-hours" style="border-left:2px solid var(--border)" onclick="copyCellHours(this,${rid})" title="Click to copy">${fmtH(rowTotal)}</td>
         </tr>`;
       }
 
-      tbody += `<tr class="spacer-row"><td colspan="${nCols}"></td></tr>`;
+      tbody += `<tr class="spacer-row" data-proj-idx="${pi}"><td colspan="${nCols}"></td></tr>`;
     }
 
     document.getElementById('table-body').innerHTML =
@@ -1613,6 +1635,17 @@
     const primary = parts.filter(t => !qualSet.has(t.toUpperCase()));
     const quals   = parts.filter(t =>  qualSet.has(t.toUpperCase()));
     return [...primary, ...quals].join(', ');
+  }
+
+  function toggleTableProject(projIdx) {
+    const table = document.querySelector('#table-body .cross-tab');
+    if (!table) return;
+    const headerRow = table.querySelector(`tr.proj-header-row[data-proj-idx="${projIdx}"]`);
+    if (!headerRow) return;
+    const isCollapsed = headerRow.classList.toggle('proj-collapsed');
+    table.querySelectorAll(`tr[data-proj-idx="${projIdx}"]:not(.proj-header-row)`).forEach(r => {
+      r.style.display = isCollapsed ? 'none' : '';
+    });
   }
 
   // ── Cell tooltip ──────────────────────────────────────────────────────────
@@ -1724,42 +1757,65 @@
     const d = PAGE_PX[printPageSize];
     const w = printOrientation === 'portrait' ? d.w : d.h;
     frame.style.maxWidth = w + 'px';
-    applyScaleToFit();
+    // Re-scale content after frame width settles (no CSS transition now)
+    if (document.getElementById('print-modal').classList.contains('open')) {
+      applyScaleToFit();
+    }
   }
 
   function applyScaleToFit() {
-    const frame = document.getElementById('page-frame');
-    const wrap  = document.getElementById('page-frame-wrap');
-    if (!frame || !wrap) return;
-    if (printScaleToFit) {
-      // Natural frame width = page width + left padding + right padding (72px each)
-      const d = PAGE_PX[printPageSize];
-      const naturalW = (printOrientation === 'portrait' ? d.w : d.h) + 144;
-      const availW = document.querySelector('.print-modal-bg').clientWidth - 48;
-      const scale = Math.min(1, availW / naturalW);
-      frame.style.transform = `scale(${scale})`;
-      frame.style.transformOrigin = 'top center';
-      // Compress wrapper to match visually-scaled height (transform doesn't affect layout)
-      const naturalH = frame.offsetHeight;
-      wrap.style.height = Math.ceil(naturalH * scale) + 'px';
-    } else {
-      frame.style.transform = '';
-      frame.style.transformOrigin = '';
-      wrap.style.height = '';
+    const frame  = document.getElementById('page-frame');
+    const outer  = document.getElementById('page-content-outer');
+    const scaler = document.getElementById('page-content-scaler');
+    if (!frame || !outer || !scaler) return;
+
+    // Always reset first
+    scaler.style.transform = '';
+    outer.style.height = '';
+    outer.style.overflow = '';
+
+    if (!printScaleToFit) return;
+
+    // Inner content area = frame width minus left + right padding (72px each)
+    const innerW = frame.clientWidth - 144;
+    const naturalW = scaler.scrollWidth;
+
+    if (naturalW > innerW && innerW > 0) {
+      const scale = innerW / naturalW;
+      scaler.style.transform = `scale(${scale})`;
+      // Collapse outer height to the visually scaled height so the frame bottom padding lands correctly
+      const scaledH = Math.ceil(scaler.offsetHeight * scale);
+      outer.style.height = scaledH + 'px';
+      outer.style.overflow = 'hidden';
     }
   }
 
   function openPrintPreview() {
     const src   = document.getElementById(activeTab === 'detail' ? 'report-body' : 'table-body');
     const frame = document.getElementById('page-frame');
-    frame.innerHTML = src.innerHTML;
+
+    // Build content scaler inside page frame
+    const scaler = document.createElement('div');
+    scaler.id = 'page-content-scaler';
+    scaler.innerHTML = src.innerHTML;
+
     // Expand collapsed days and strip interactive elements
-    frame.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
-    frame.querySelectorAll('.day-collapse-btn, .btn-copy').forEach(el => el.remove());
-    frame.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
-    frame.querySelectorAll('[onmouseenter]').forEach(el => { el.removeAttribute('onmouseenter'); el.removeAttribute('onmouseleave'); });
-    frame.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
-    updatePageFrame(); // sets max-width and applies scale-to-fit if active
+    scaler.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
+    scaler.querySelectorAll('.day-collapse-btn, .table-proj-collapse, .btn-copy').forEach(el => el.remove());
+    scaler.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+    scaler.querySelectorAll('[onmouseenter]').forEach(el => { el.removeAttribute('onmouseenter'); el.removeAttribute('onmouseleave'); });
+    scaler.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
+    scaler.querySelectorAll('.proj-header-row td:first-child').forEach(el => el.style.cursor = 'default');
+
+    const outer = document.createElement('div');
+    outer.id = 'page-content-outer';
+    outer.appendChild(scaler);
+
+    frame.innerHTML = '';
+    frame.appendChild(outer);
+
+    updatePageFrame();
+    applyScaleToFit();
     document.getElementById('print-modal').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
