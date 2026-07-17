@@ -541,19 +541,24 @@
       white-space: nowrap;
       cursor: pointer;
       user-select: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     .table-proj-collapse {
       background: none;
       border: none;
-      color: rgba(255,255,255,.55);
-      font-size: 12px;
+      -webkit-appearance: none;
+      color: rgba(255,255,255,.85);
+      font-size: 14px;
       cursor: pointer;
-      padding: 0;
-      margin-right: 6px;
+      padding: 4px 8px 4px 2px;
+      margin-right: 2px;
       transition: transform .18s;
       vertical-align: middle;
       line-height: 1;
       display: inline-block;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     .cross-tab .proj-header-row.proj-collapsed .table-proj-collapse { transform: rotate(-90deg); }
 
@@ -581,7 +586,9 @@
       inset: 0;
       background: rgba(0,0,0,.65);
       z-index: 1000;
-      overflow: auto;
+      overflow-y: scroll;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       padding: 32px 20px;
     }
     .print-modal.open { display: block; }
@@ -1777,9 +1784,9 @@
     const d = PAGE_PX[printPageSize];
     const w = printOrientation === 'portrait' ? d.w : d.h;
     frame.style.maxWidth = w + 'px';
-    // Re-scale after layout settles; RAF lets the browser apply the new max-width first
+    // Double RAF: first frame applies the new max-width style, second frame reads settled layout
     if (document.getElementById('print-modal').classList.contains('open')) {
-      requestAnimationFrame(() => applyScaleToFit());
+      requestAnimationFrame(() => requestAnimationFrame(() => applyScaleToFit()));
     }
   }
 
@@ -1828,6 +1835,10 @@
     scaler.querySelectorAll('[onmouseenter]').forEach(el => { el.removeAttribute('onmouseenter'); el.removeAttribute('onmouseleave'); });
     scaler.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
     scaler.querySelectorAll('.proj-header-row td:first-child').forEach(el => el.style.cursor = 'default');
+    // Expand the table wrapper so the full table is visible in the preview (not clipped)
+    scaler.querySelectorAll('.cross-tab-wrap').forEach(el => { el.style.overflowX = 'visible'; el.style.overflowY = 'visible'; });
+    // Remove sticky positioning in preview so columns render at natural width
+    scaler.querySelectorAll('.row-label, .proj-header-row td:first-child').forEach(el => el.style.position = 'static');
 
     const outer = document.createElement('div');
     outer.id = 'page-content-outer';
