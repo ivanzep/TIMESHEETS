@@ -558,7 +558,7 @@
       gap: 12px;
     }
     .print-modal-title { font-weight: 700; font-size: 14px; flex: 1; }
-    .print-modal-body { padding: 32px; }
+    /* .print-modal-body replaced by .print-modal-bg + .page-frame */
     .btn-modal-print {
       background: var(--accent);
       border: none;
@@ -582,6 +582,50 @@
       transition: border-color .15s, color .15s;
     }
     .btn-modal-close:hover { border-color: #999; color: #fff; }
+
+    /* ── Print page controls ── */
+    .print-page-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .page-ctrl-group {
+      display: flex;
+      border: 1px solid #555;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .page-ctrl-btn {
+      background: none;
+      border: none;
+      border-right: 1px solid #555;
+      color: #aaa;
+      padding: 5px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s, color .12s;
+      white-space: nowrap;
+    }
+    .page-ctrl-btn:last-child { border-right: none; }
+    .page-ctrl-btn.active { background: var(--accent); color: #fff; }
+    .page-ctrl-btn:not(.active):hover { background: rgba(255,255,255,.1); color: #fff; }
+
+    /* ── Page frame (print preview) ── */
+    .print-modal-bg {
+      background: #c8c8c8;
+      padding: 32px 24px 48px;
+      min-height: 80px;
+    }
+    .page-frame {
+      background: #fff;
+      margin: 0 auto;
+      padding: 72px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+      max-width: 816px; /* letter portrait default */
+      transition: max-width .2s;
+    }
 
     /* ── Print ── */
     @media print {
@@ -615,9 +659,12 @@
       }
       body.printing-preview .print-modal-toolbar { display: none !important; }
       body.printing-preview .print-modal-inner { box-shadow: none !important; border-radius: 0 !important; max-width: none !important; }
+      body.printing-preview .print-modal-bg { background: none !important; padding: 0 !important; }
+      body.printing-preview .page-frame { max-width: none !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
       body.printing-preview .btn-copy,
       body.printing-preview .day-collapse-btn { display: none !important; }
       body.printing-preview .cross-tab .row-label { position: static; }
+      body.printing-preview .cross-tab-wrap { overflow-x: visible !important; }
       body.printing-preview .day-block { break-inside: avoid; }
     }
   </style>
@@ -724,22 +771,39 @@
   <div class="print-modal-inner">
     <div class="print-modal-toolbar">
       <span class="print-modal-title">🖨 Print Preview</span>
-      <div style="display:flex;gap:10px">
+      <div class="print-page-controls">
+        <div class="page-ctrl-group">
+          <button class="page-ctrl-btn active" data-size="letter" onclick="setPageSize('letter')">Letter</button>
+          <button class="page-ctrl-btn" data-size="A4" onclick="setPageSize('A4')">A4</button>
+          <button class="page-ctrl-btn" data-size="legal" onclick="setPageSize('legal')">Legal</button>
+        </div>
+        <div class="page-ctrl-group">
+          <button class="page-ctrl-btn active" data-orient="portrait" onclick="setOrientation('portrait')">Portrait</button>
+          <button class="page-ctrl-btn" data-orient="landscape" onclick="setOrientation('landscape')">Landscape</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-shrink:0">
         <button class="btn-modal-print" onclick="printFromPreview()">Export PDF</button>
         <button class="btn-modal-close" onclick="closePrintPreview()">✕ Close</button>
       </div>
     </div>
-    <div class="print-modal-body" id="print-modal-body"></div>
+    <div class="print-modal-bg">
+      <div class="page-frame" id="page-frame"></div>
+    </div>
   </div>
 </div>
 
 <script>
 /**
  * toggl-report-v0.2.html
- * Last updated: 2026-07-17 20:02
+ * Last updated: 2026-07-17 21:00
  *
  * Version log:
- *  v0.2  2026-07-17  Table View axis corrected: Y=project>tag rows, X=date columns
+ *  v0.2  2026-07-17  Print Preview page size selector (Letter / A4 / Legal) and
+ *                    orientation toggle (Portrait / Landscape); @page rule injected
+ *                    at export time; page frame visually constrains preview to
+ *                    selected paper dimensions (96 dpi pixel widths)
+ *        ──────────  Table View axis corrected: Y=project>tag rows, X=date columns
  *                    Click any cell to copy its value
  *                    Summary format table view: project / task / hours
  *                    Print Preview modal with full-screen preview and Export PDF
@@ -1504,15 +1568,48 @@
 
   // ── Print Preview ─────────────────────────────────────────────────────────
 
+  let printPageSize = 'letter';
+  let printOrientation = 'portrait';
+
+  // Pixel widths at 96 dpi for each paper size (portrait)
+  const PAGE_PX = {
+    letter: { w: 816,  h: 1056 },  // 8.5 × 11 in
+    A4:     { w: 794,  h: 1123 },  // 210 × 297 mm
+    legal:  { w: 816,  h: 1344 },  // 8.5 × 14 in
+  };
+
+  function setPageSize(size) {
+    printPageSize = size;
+    document.querySelectorAll('[data-size]').forEach(b =>
+      b.classList.toggle('active', b.dataset.size === size));
+    updatePageFrame();
+  }
+
+  function setOrientation(orient) {
+    printOrientation = orient;
+    document.querySelectorAll('[data-orient]').forEach(b =>
+      b.classList.toggle('active', b.dataset.orient === orient));
+    updatePageFrame();
+  }
+
+  function updatePageFrame() {
+    const frame = document.getElementById('page-frame');
+    if (!frame) return;
+    const d = PAGE_PX[printPageSize];
+    const w = printOrientation === 'portrait' ? d.w : d.h;
+    frame.style.maxWidth = w + 'px';
+  }
+
   function openPrintPreview() {
-    const src  = document.getElementById(activeTab === 'detail' ? 'report-body' : 'table-body');
-    const body = document.getElementById('print-modal-body');
-    body.innerHTML = src.innerHTML;
+    const src   = document.getElementById(activeTab === 'detail' ? 'report-body' : 'table-body');
+    const frame = document.getElementById('page-frame');
+    frame.innerHTML = src.innerHTML;
     // Expand collapsed days and strip interactive elements
-    body.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
-    body.querySelectorAll('.day-collapse-btn, .btn-copy').forEach(el => el.remove());
-    body.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
-    body.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
+    frame.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
+    frame.querySelectorAll('.day-collapse-btn, .btn-copy').forEach(el => el.remove());
+    frame.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+    frame.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
+    updatePageFrame();
     document.getElementById('print-modal').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
@@ -1527,8 +1624,19 @@
   }
 
   function printFromPreview() {
+    // Inject @page rule for selected paper size and orientation
+    let pageStyle = document.getElementById('print-page-style');
+    if (!pageStyle) {
+      pageStyle = document.createElement('style');
+      pageStyle.id = 'print-page-style';
+      document.head.appendChild(pageStyle);
+    }
+    pageStyle.textContent = `@page { size: ${printPageSize} ${printOrientation}; margin: 0.75in; }`;
     document.body.classList.add('printing-preview');
-    window.addEventListener('afterprint', () => document.body.classList.remove('printing-preview'), { once: true });
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('printing-preview');
+      pageStyle.textContent = '';
+    }, { once: true });
     setTimeout(() => window.print(), 50);
   }
 
