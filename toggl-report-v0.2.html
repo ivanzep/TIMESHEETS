@@ -544,6 +544,32 @@
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
+
+    /* Day-total cells in project header row: hidden when expanded, visible when collapsed */
+    .cross-tab .proj-header-row .proj-day-total { visibility: hidden; }
+    .cross-tab .proj-header-row.proj-collapsed .proj-day-total { visibility: visible; }
+
+    /* Expand / Collapse All controls above the table */
+    .table-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .table-ctrl-btn {
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .table-ctrl-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
+
     .table-proj-collapse {
       background: none;
       border: none;
@@ -1571,15 +1597,21 @@
     const projects = [...projTags.keys()].sort();
     const nCols = dates.length + 2;
 
-    // First pass: compute column totals and grand total
+    // First pass: compute column totals, per-project day totals, and grand total
     const dateTotals = {};
+    const projDayTotals = {}; // proj -> date -> total hours (for collapsed header row)
+    const projTotals = {};    // proj -> total hours
     let grandTotal = 0;
     for (const proj of projects) {
+      projDayTotals[proj] = {};
+      projTotals[proj] = 0;
       for (const tagKey of projTags.get(proj)) {
         for (const date of dates) {
           const hrs = roundQ(matrix[date + '\x00' + proj + '\x00' + tagKey] || 0);
           if (hrs > 0) {
             dateTotals[date] = (dateTotals[date] || 0) + hrs;
+            projDayTotals[proj][date] = (projDayTotals[proj][date] || 0) + hrs;
+            projTotals[proj] += hrs;
             grandTotal += hrs;
           }
         }
@@ -1611,12 +1643,20 @@
     for (let pi = 0; pi < projects.length; pi++) {
       const proj = projects[pi];
       const tags = [...projTags.get(proj)].sort();
-      // Sticky first cell with collapse toggle; filler cell spans remaining columns
+      // Per-day totals for the project (hidden when expanded, shown when collapsed)
+      let projDayCells = '';
+      for (const date of dates) {
+        const hrs = projDayTotals[proj][date] || 0;
+        projDayCells += hrs > 0
+          ? `<td class="cell-hours proj-day-total">${fmtH(hrs)}</td>`
+          : `<td class="cell-empty proj-day-total">—</td>`;
+      }
       tbody += `<tr class="proj-header-row" data-proj-idx="${pi}">
         <td onclick="toggleTableProject(${pi})">
           <button class="table-proj-collapse">▼</button>${escHtml(proj)}
         </td>
-        <td colspan="${nCols - 1}"></td>
+        ${projDayCells}
+        <td class="col-total proj-day-total" style="border-left:2px solid #3a3a55">${fmtH(projTotals[proj])}</td>
       </tr>`;
 
       for (const tagKey of tags) {
@@ -1650,7 +1690,11 @@
     }
 
     document.getElementById('table-body').innerHTML =
-      `<div class="cross-tab-wrap"><table class="cross-tab">
+      `<div class="table-controls">
+        <button class="table-ctrl-btn" onclick="expandAllProjects()">Expand All</button>
+        <button class="table-ctrl-btn" onclick="collapseAllProjects()">Collapse All</button>
+      </div>
+      <div class="cross-tab-wrap"><table class="cross-tab">
         <thead>${thead}</thead><tbody>${tbody}</tbody>
       </table></div>`;
   }
@@ -1672,6 +1716,23 @@
     const isCollapsed = headerRow.classList.toggle('proj-collapsed');
     table.querySelectorAll(`tr[data-proj-idx="${projIdx}"]:not(.proj-header-row)`).forEach(r => {
       r.style.display = isCollapsed ? 'none' : '';
+    });
+  }
+
+  function expandAllProjects() {
+    const table = document.querySelector('#table-body .cross-tab');
+    if (!table) return;
+    table.querySelectorAll('.proj-header-row').forEach(h => h.classList.remove('proj-collapsed'));
+    table.querySelectorAll('tr[data-proj-idx]:not(.proj-header-row)').forEach(r => { r.style.display = ''; });
+  }
+
+  function collapseAllProjects() {
+    const table = document.querySelector('#table-body .cross-tab');
+    if (!table) return;
+    table.querySelectorAll('.proj-header-row').forEach(h => {
+      h.classList.add('proj-collapsed');
+      const idx = h.dataset.projIdx;
+      table.querySelectorAll(`tr[data-proj-idx="${idx}"]:not(.proj-header-row)`).forEach(r => { r.style.display = 'none'; });
     });
   }
 
@@ -1830,7 +1891,9 @@
 
     // Expand collapsed days and strip interactive elements
     scaler.querySelectorAll('.day-block.collapsed').forEach(b => b.classList.remove('collapsed'));
-    scaler.querySelectorAll('.day-collapse-btn, .table-proj-collapse, .btn-copy').forEach(el => el.remove());
+    scaler.querySelectorAll('.proj-header-row.proj-collapsed').forEach(h => h.classList.remove('proj-collapsed'));
+    scaler.querySelectorAll('tr[data-proj-idx]:not(.proj-header-row)').forEach(r => { r.style.display = ''; });
+    scaler.querySelectorAll('.day-collapse-btn, .table-proj-collapse, .btn-copy, .table-controls').forEach(el => el.remove());
     scaler.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
     scaler.querySelectorAll('[onmouseenter]').forEach(el => { el.removeAttribute('onmouseenter'); el.removeAttribute('onmouseleave'); });
     scaler.querySelectorAll('.cell-hours').forEach(el => el.style.cursor = 'default');
