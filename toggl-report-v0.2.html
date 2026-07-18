@@ -713,6 +713,7 @@
       max-width: 816px;
       width: 100%;
       flex-shrink: 0;
+      overflow: hidden;
     }
     #page-content-outer { overflow: hidden; }
     #page-content-scaler { transform-origin: top left; }
@@ -745,33 +746,30 @@
     .theme-dot:hover { transform: scale(1.2); }
     .theme-dot.active { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
 
+    /* Themes only vary accent + header/tag colors; backgrounds stay white/neutral for legibility and print */
     body.theme-ocean {
-      --accent: #2b7fff; --accent-dark: #1a5fd4;
-      --bg: #f0f6ff; --card: #ffffff; --border: #cde0ff;
-      --tag-bg: #ddeeff; --tag-text: #1a5fd4;
-      --date-bg: #0f4c81; --project-bg: #ebf3ff; --project-border: #b8d4f8;
-      --total-bg: #f5f9ff;
+      --accent: #0284c7; --accent-dark: #0369a1;
+      --date-bg: #0c4a6e;
+      --tag-bg: #e0f2fe; --tag-text: #0369a1;
+      --project-bg: #f0f9ff; --project-border: #bae6fd;
     }
     body.theme-forest {
-      --accent: #2d8a4e; --accent-dark: #1d6337;
-      --bg: #f0f7f1; --card: #ffffff; --border: #c0dfc9;
-      --tag-bg: #dff1e6; --tag-text: #1d6337;
-      --date-bg: #1b4332; --project-bg: #eaf4ec; --project-border: #b4dcc0;
-      --total-bg: #f4faf5;
+      --accent: #16a34a; --accent-dark: #15803d;
+      --date-bg: #14532d;
+      --tag-bg: #dcfce7; --tag-text: #15803d;
+      --project-bg: #f0fdf4; --project-border: #bbf7d0;
     }
     body.theme-warm {
-      --accent: #d97706; --accent-dark: #b45309;
-      --bg: #fffbf0; --card: #ffffff; --border: #f0d9a0;
-      --tag-bg: #fef3c7; --tag-text: #92400e;
-      --date-bg: #78350f; --project-bg: #fffbeb; --project-border: #fde68a;
-      --total-bg: #fffdf5;
+      --accent: #ea580c; --accent-dark: #c2410c;
+      --date-bg: #431407;
+      --tag-bg: #ffedd5; --tag-text: #9a3412;
+      --project-bg: #fff7ed; --project-border: #fed7aa;
     }
     body.theme-slate {
-      --accent: #6366f1; --accent-dark: #4f46e5;
-      --bg: #f8fafc; --card: #ffffff; --border: #cbd5e1;
-      --tag-bg: #e0e7ff; --tag-text: #3730a3;
-      --date-bg: #1e293b; --project-bg: #eef2ff; --project-border: #c7d2fe;
-      --total-bg: #f9fafb;
+      --accent: #4f46e5; --accent-dark: #4338ca;
+      --date-bg: #1e1b4b;
+      --tag-bg: #ede9fe; --tag-text: #4338ca;
+      --project-bg: #f5f3ff; --project-border: #ddd6fe;
     }
 
     /* ── Print ── */
@@ -808,7 +806,7 @@
       body.printing-preview .print-modal-inner { box-shadow: none !important; border-radius: 0 !important; max-width: none !important; }
       body.printing-preview .print-modal-bg { background: none !important; padding: 0 !important; }
       body.printing-preview .page-frame-wrap { height: auto !important; display: block !important; }
-      body.printing-preview .page-frame { max-width: none !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
+      body.printing-preview .page-frame { max-width: none !important; min-height: 0 !important; aspect-ratio: auto !important; overflow: visible !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
       body.printing-preview #page-content-outer { height: auto !important; overflow: visible !important; }
       body.printing-preview #page-content-scaler { transform: none !important; }
       body.printing-preview .cross-tab .spacer-row td { background: #fff; }
@@ -1913,7 +1911,9 @@
     const w = isLandscape ? d.h : d.w;
     const h = isLandscape ? d.w : d.h;
     frame.style.maxWidth = w + 'px';
-    frame.style.minHeight = h + 'px'; // keep paper proportions when scale-to-fit changes content height
+    frame.style.minHeight = '';
+    // aspect-ratio maintains correct paper proportions at any rendered width (critical for landscape on small screens)
+    frame.style.aspectRatio = `${w} / ${h}`;
     // Double RAF: first frame applies the new max-width style, second frame reads settled layout
     if (document.getElementById('print-modal').classList.contains('open')) {
       requestAnimationFrame(() => requestAnimationFrame(() => applyScaleToFit()));
