@@ -1319,8 +1319,9 @@
       const date  = e['Start date'];
       const proj  = e['Project'] || '(No Project)';
       const eTags = splitTags(e['Tags']);
-      const primaryTags = qualifierSet.size > 0 ? eTags.filter(t => !qualifierSet.has(t.toUpperCase())) : eTags;
-      const qualTags    = qualifierSet.size > 0 ? eTags.filter(t =>  qualifierSet.has(t.toUpperCase())) : [];
+      const isQualTag   = (t) => [...qualifierSet].some(q => t.toUpperCase().includes(q));
+      const primaryTags = qualifierSet.size > 0 ? eTags.filter(t => !isQualTag(t)) : eTags;
+      const qualTags    = qualifierSet.size > 0 ? eTags.filter(t =>  isQualTag(t)) : [];
 
       // If entry has primary tags use those as key; otherwise fall back to full tag key
       const primaryKey = primaryTags.length > 0
@@ -1800,11 +1801,13 @@
   }
 
   // Sort qualifier tags to the end of a display label (matrix key stays alphabetical)
+  // Uses substring match so "OFFICE MEETING" is caught by qualifier keyword "OFFICE" or "MEETING"
   function displayTags(normalizedTagKey, qualSet) {
     if (!qualSet || !qualSet.size || !normalizedTagKey) return normalizedTagKey;
     const parts = normalizedTagKey.split(', ').filter(Boolean);
-    const primary = parts.filter(t => !qualSet.has(t.toUpperCase()));
-    const quals   = parts.filter(t =>  qualSet.has(t.toUpperCase()));
+    const isQual = (t) => [...qualSet].some(q => t.toUpperCase().includes(q));
+    const primary = parts.filter(t => !isQual(t));
+    const quals   = parts.filter(t =>  isQual(t));
     return [...primary, ...quals].join(', ');
   }
 
