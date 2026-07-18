@@ -730,6 +730,50 @@
       .report-header-row { flex-direction: column; align-items: flex-start; gap: 10px; }
     }
 
+    /* ── Themes ── */
+    .theme-switcher { display: flex; gap: 7px; margin-left: auto; align-items: center; }
+    .theme-dot {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+      transition: border-color .15s, transform .15s;
+      touch-action: manipulation;
+    }
+    .theme-dot:hover { transform: scale(1.2); }
+    .theme-dot.active { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
+
+    body.theme-ocean {
+      --accent: #2b7fff; --accent-dark: #1a5fd4;
+      --bg: #f0f6ff; --card: #ffffff; --border: #cde0ff;
+      --tag-bg: #ddeeff; --tag-text: #1a5fd4;
+      --date-bg: #0f4c81; --project-bg: #ebf3ff; --project-border: #b8d4f8;
+      --total-bg: #f5f9ff;
+    }
+    body.theme-forest {
+      --accent: #2d8a4e; --accent-dark: #1d6337;
+      --bg: #f0f7f1; --card: #ffffff; --border: #c0dfc9;
+      --tag-bg: #dff1e6; --tag-text: #1d6337;
+      --date-bg: #1b4332; --project-bg: #eaf4ec; --project-border: #b4dcc0;
+      --total-bg: #f4faf5;
+    }
+    body.theme-warm {
+      --accent: #d97706; --accent-dark: #b45309;
+      --bg: #fffbf0; --card: #ffffff; --border: #f0d9a0;
+      --tag-bg: #fef3c7; --tag-text: #92400e;
+      --date-bg: #78350f; --project-bg: #fffbeb; --project-border: #fde68a;
+      --total-bg: #fffdf5;
+    }
+    body.theme-slate {
+      --accent: #6366f1; --accent-dark: #4f46e5;
+      --bg: #f8fafc; --card: #ffffff; --border: #cbd5e1;
+      --tag-bg: #e0e7ff; --tag-text: #3730a3;
+      --date-bg: #1e293b; --project-bg: #eef2ff; --project-border: #c7d2fe;
+      --total-bg: #f9fafb;
+    }
+
     /* ── Print ── */
     @media print {
       body { background: #fff; }
@@ -764,7 +808,7 @@
       body.printing-preview .print-modal-inner { box-shadow: none !important; border-radius: 0 !important; max-width: none !important; }
       body.printing-preview .print-modal-bg { background: none !important; padding: 0 !important; }
       body.printing-preview .page-frame-wrap { height: auto !important; display: block !important; }
-      body.printing-preview .page-frame { max-width: none !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
+      body.printing-preview .page-frame { max-width: none !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
       body.printing-preview #page-content-outer { height: auto !important; overflow: visible !important; }
       body.printing-preview #page-content-scaler { transform: none !important; }
       body.printing-preview .cross-tab .spacer-row td { background: #fff; }
@@ -782,6 +826,13 @@
 <header class="app-header">
   <span>⏱</span>
   <h1>Toggl Report Generator</h1>
+  <div class="theme-switcher">
+    <button class="theme-dot active" data-theme="" style="background:#e57cd8" onclick="setTheme('')" title="Default"></button>
+    <button class="theme-dot" data-theme="ocean" style="background:#2b7fff" onclick="setTheme('ocean')" title="Ocean"></button>
+    <button class="theme-dot" data-theme="forest" style="background:#2d8a4e" onclick="setTheme('forest')" title="Forest"></button>
+    <button class="theme-dot" data-theme="warm" style="background:#d97706" onclick="setTheme('warm')" title="Warm"></button>
+    <button class="theme-dot" data-theme="slate" style="background:#6366f1" onclick="setTheme('slate')" title="Slate"></button>
+  </div>
 </header>
 
 <div class="container">
@@ -1526,6 +1577,21 @@
     el.addEventListener('change', () => localStorage.setItem('qualifierTags', el.value));
   })();
 
+  // ── Color themes ─────────────────────────────────────────────────────────
+
+  function setTheme(name) {
+    document.body.className = document.body.className.replace(/\btheme-\S+/g, '').trim();
+    if (name) document.body.classList.add('theme-' + name);
+    document.querySelectorAll('.theme-dot').forEach(d =>
+      d.classList.toggle('active', d.dataset.theme === name));
+    localStorage.setItem('toggl-theme', name);
+  }
+
+  (function() {
+    const t = localStorage.getItem('toggl-theme');
+    if (t) setTheme(t);
+  })();
+
   // ── Day collapse ─────────────────────────────────────────────────────────
 
   function toggleDay(header) {
@@ -1843,8 +1909,11 @@
     const frame = document.getElementById('page-frame');
     if (!frame) return;
     const d = PAGE_PX[printPageSize];
-    const w = printOrientation === 'portrait' ? d.w : d.h;
+    const isLandscape = printOrientation === 'landscape';
+    const w = isLandscape ? d.h : d.w;
+    const h = isLandscape ? d.w : d.h;
     frame.style.maxWidth = w + 'px';
+    frame.style.minHeight = h + 'px'; // keep paper proportions when scale-to-fit changes content height
     // Double RAF: first frame applies the new max-width style, second frame reads settled layout
     if (document.getElementById('print-modal').classList.contains('open')) {
       requestAnimationFrame(() => requestAnimationFrame(() => applyScaleToFit()));
