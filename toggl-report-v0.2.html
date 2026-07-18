@@ -731,6 +731,24 @@
       .report-header-row { flex-direction: column; align-items: flex-start; gap: 10px; }
     }
 
+    /* ── Hamburger ── */
+    .hamburger-btn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,.7);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 5px;
+      line-height: 1;
+      margin-left: 4px;
+      transition: color .15s, background .15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .hamburger-btn:hover { color: #fff; background: rgba(255,255,255,.1); }
+    .hamburger-btn.open { color: #fff; }
+
     /* ── Themes ── */
     .theme-switcher { display: flex; gap: 7px; margin-left: auto; align-items: center; }
     .theme-dot {
@@ -831,6 +849,7 @@
     <button class="theme-dot" data-theme="warm" style="background:#d97706" onclick="setTheme('warm')" title="Warm"></button>
     <button class="theme-dot" data-theme="slate" style="background:#6366f1" onclick="setTheme('slate')" title="Slate"></button>
   </div>
+  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleUploadSection()" title="Load file" style="display:none">☰</button>
 </header>
 
 <div class="container">
@@ -1176,6 +1195,12 @@
 
     document.getElementById('filters-panel').style.display = 'block';
     document.getElementById('report-output').style.display = 'none';
+    // Hide upload zone and reveal hamburger so header stays clean after load
+    document.getElementById('upload-section').style.display = 'none';
+    const hbtn = document.getElementById('hamburger-btn');
+    hbtn.style.display = '';
+    hbtn.textContent = '☰';
+    hbtn.classList.remove('open');
     generateReport();
   }
 
@@ -1575,6 +1600,17 @@
     el.addEventListener('change', () => localStorage.setItem('qualifierTags', el.value));
   })();
 
+  // ── Upload section toggle (hamburger) ────────────────────────────────────
+
+  function toggleUploadSection() {
+    const sec = document.getElementById('upload-section');
+    const btn = document.getElementById('hamburger-btn');
+    const opening = sec.style.display === 'none';
+    sec.style.display = opening ? '' : 'none';
+    btn.textContent = opening ? '✕' : '☰';
+    btn.classList.toggle('open', opening);
+  }
+
   // ── Color themes ─────────────────────────────────────────────────────────
 
   function setTheme(name) {
@@ -1933,17 +1969,24 @@
 
     if (!printScaleToFit) return;
 
-    // Inner content area = frame width minus actual computed padding (adapts to mobile breakpoints)
+    // Compute inner content area from actual computed padding (adapts to mobile breakpoints)
     const cs = getComputedStyle(frame);
     const padH = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const padV = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const innerW = frame.clientWidth - padH;
+    const innerH = frame.clientHeight - padV;
     const naturalW = scaler.scrollWidth;
+    const naturalH = scaler.scrollHeight;
 
-    if (naturalW > innerW && innerW > 0) {
-      const scale = innerW / naturalW;
+    // Scale to fit both dimensions — whichever axis is tighter wins
+    const scaleW = (innerW > 0 && naturalW > innerW) ? innerW / naturalW : 1;
+    const scaleH = (innerH > 0 && naturalH > innerH) ? innerH / naturalH : 1;
+    const scale = Math.min(scaleW, scaleH);
+
+    if (scale < 1) {
       scaler.style.transform = `scale(${scale})`;
-      // Collapse outer height to the visually scaled height so the frame bottom padding lands correctly
-      const scaledH = Math.ceil(scaler.offsetHeight * scale);
+      scaler.style.transformOrigin = 'top left';
+      const scaledH = Math.ceil(naturalH * scale);
       outer.style.height = scaledH + 'px';
       outer.style.overflow = 'hidden';
     }
